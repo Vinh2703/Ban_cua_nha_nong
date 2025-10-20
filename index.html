@@ -1,239 +1,179 @@
 <!DOCTYPE html>
 <html lang="vi">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Bạn của nhà nông 🌾</title>
-  <style>
-    body { font-family: Arial, sans-serif; background:#f3fffb; margin:0; padding:18px; text-align:center; }
-    h1 { margin:0 0 10px; color:#0b6b4f; }
-    p { margin:6px 0 12px; color:#2e2e2e; }
-    #videoWrap, #previewWrap { display:flex; justify-content:center; }
-    video, img { width:92%; max-width:360px; border-radius:12px; box-shadow:0 6px 18px rgba(0,0,0,0.12); }
-    #controls { margin-top:12px; }
-    button {
-      margin:6px; padding:12px 16px; font-size:16px; border-radius:10px; border:none; color:white;
-      background:#007b66; cursor:pointer;
-    }
-    button[disabled] { background:#9fcac2; cursor:not-allowed; }
-    #result { margin-top:14px; font-size:18px; color:#0b5a46; font-weight:700; min-height:48px; }
-    small { display:block; color:#666; margin-top:8px; }
-  </style>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Bạn của nhà nông 🌾</title>
+<style>
+body { font-family: Arial, sans-serif; background:#f3fffb; margin:0; padding:18px; text-align:center; }
+h1 { margin:0 0 10px; color:#0b6b4f; }
+p { margin:6px 0 12px; color:#2e2e2e; }
+#videoWrap, #previewWrap { display:flex; justify-content:center; }
+video, img { width:92%; max-width:360px; border-radius:12px; box-shadow:0 6px 18px rgba(0,0,0,0.12); }
+#controls { margin-top:12px; }
+button { margin:6px; padding:12px 16px; font-size:16px; border-radius:10px; border:none; color:white; background:#007b66; cursor:pointer; }
+button[disabled] { background:#9fcac2; cursor:not-allowed; }
+#result { margin-top:14px; font-size:18px; color:#0b5a46; font-weight:700; min-height:48px; }
+#details { margin-top:12px; text-align:left; display:none; background:#e8f6f2; padding:12px; border-radius:10px; }
+#details p { margin:4px 0; }
+small { display:block; color:#666; margin-top:8px; }
+</style>
 </head>
 <body>
-  <h1>🌾 Bạn của nhà nông</h1>
-  <p>Chụp lá cây — Phân tích bằng AI — Kết quả sẽ đọc bằng giọng nữ</p>
+<h1>🌾 Bạn của nhà nông</h1>
+<p>Chụp lá cây — Phân tích bằng AI — Kết quả sẽ đọc bằng giọng nữ</p>
 
-  <div id="videoWrap">
-    <video id="webcam" autoplay playsinline muted></video>
-  </div>
+<div id="videoWrap"><video id="webcam" autoplay playsinline muted></video></div>
+<div id="previewWrap" style="margin-top:10px;"><img id="preview" alt="Ảnh chụp sẽ hiện ở đây" style="display:none"></div>
 
-  <div id="previewWrap" style="margin-top:10px;">
-    <img id="preview" alt="Ảnh chụp sẽ hiện ở đây" style="display:none" />
-  </div>
+<div id="controls">
+  <button id="startBtn">📷 Bật camera sau</button>
+  <button id="switchBtn" disabled>🔄 Chuyển camera</button>
+  <button id="captureBtn" disabled>📸 Chụp ảnh</button>
+  <button id="analyzeBtn" disabled>🧠 Phân tích</button>
+  <button id="detailsBtn" disabled>📖 Xem chi tiết</button>
+</div>
 
-  <div id="controls">
-    <button id="startBtn">📷 Bật camera sau</button>
-    <button id="switchBtn" disabled>🔄 Chuyển camera</button>
-    <button id="captureBtn" disabled>📸 Chụp ảnh</button>
-    <button id="analyzeBtn" disabled>🧠 Phân tích</button>
-  </div>
+<div id="result">Kết quả sẽ hiển thị ở đây...</div>
 
-  <div id="result">Kết quả sẽ hiển thị ở đây...</div>
-  <small>Lưu ý: Mở bằng Chrome chính chủ, cho phép quyền Camera khi được hỏi.</small>
+<div id="details">
+  <p><strong>Biểu hiện:</strong> <span id="symptoms"></span></p>
+  <p><strong>Nguyên nhân:</strong> <span id="causes"></span></p>
+  <p><strong>Cách phòng:</strong> <span id="prevention"></span></p>
+  <p><strong>Chăm sóc:</strong> <span id="care"></span></p>
+  <p><strong>Điều trị:</strong> <span id="treatment"></span></p>
+</div>
 
-  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@3.9.0"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@0.8/dist/teachablemachine-image.min.js"></script>
+<small>Lưu ý: Mở bằng Chrome chính chủ, cho phép quyền Camera khi được hỏi.</small>
 
-  <script>
-    const MODEL_URL = "https://teachablemachine.withgoogle.com/models/YEWRSh9R8/";
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@3.9.0"></script>
+<script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@0.8/dist/teachablemachine-image.min.js"></script>
 
-    const video = document.getElementById('webcam');
-    const preview = document.getElementById('preview');
-    const startBtn = document.getElementById('startBtn');
-    const switchBtn = document.getElementById('switchBtn');
-    const captureBtn = document.getElementById('captureBtn');
-    const analyzeBtn = document.getElementById('analyzeBtn');
-    const resultDiv = document.getElementById('result');
+<script>
+const MODEL_URL = "https://teachablemachine.withgoogle.com/models/YEWRSh9R8/";
 
-    let model = null;
-    let stream = null;
-    let currentDeviceId = null;
-    let videoDevices = [];
+const video = document.getElementById('webcam');
+const preview = document.getElementById('preview');
+const startBtn = document.getElementById('startBtn');
+const switchBtn = document.getElementById('switchBtn');
+const captureBtn = document.getElementById('captureBtn');
+const analyzeBtn = document.getElementById('analyzeBtn');
+const detailsBtn = document.getElementById('detailsBtn');
+const resultDiv = document.getElementById('result');
+const symptomsEl = document.getElementById('symptoms');
+const causesEl = document.getElementById('causes');
+const preventionEl = document.getElementById('prevention');
+const careEl = document.getElementById('care');
+const treatmentEl = document.getElementById('treatment');
+const detailsDiv = document.getElementById('details');
 
-    // Load model
-    async function loadModel() {
-      try {
-        resultDiv.innerText = "Đang tải mô hình...";
-        model = await tmImage.load(MODEL_URL + "model.json", MODEL_URL + "metadata.json");
-        resultDiv.innerText = "✅ Mô hình sẵn sàng. Nhấn 'Bật camera sau'.";
-        speak("Mô hình đã sẵn sàng. Nhấn bật camera để bắt đầu.");
-      } catch (e) {
-        console.error(e);
-        resultDiv.innerText = "❌ Không thể tải mô hình: " + e;
-        speak("Không thể tải mô hình, vui lòng kiểm tra mạng.");
-      }
-    }
+let model = null;
+let stream = null;
+let currentDeviceId = null;
+let videoDevices = [];
 
-    async function listVideoDevices() {
-      try {
-        const devices = await navigator.mediaDevices.enumerateDevices();
-        videoDevices = devices.filter(d => d.kind === 'videoinput');
-      } catch (e) {
-        console.warn("Không lấy được thiết bị: ", e);
-      }
-    }
+const diseaseDetails = {
+  "BỆNH KHÔ VÂN": {
+    symptoms:"Xuất hiện vết bệnh màu xám tro, loang lổ như vằn da hổ trên phiến lá, bẹ lá, thân và cả bắp ngô. Vết bệnh lan từ gốc lên tới bắp, làm lá vàng úa, khô héo, cây tàn lụi nhanh. Khi bệnh nặng, giảm năng suất từ 20–70%.",
+    causes:"Do nấm Rhizoctonia solani Kuhn gây ra. Nấm phát triển mạnh trong điều kiện ẩm ướt, nhiệt độ cao, đất thoát nước kém, mật độ gieo trồng dày. Bệnh xuất hiện ở nhiều giai đoạn sinh trưởng của cây ngô.",
+    prevention:"Luân canh cây trồng; giữ khoảng cách gieo trồng hợp lý để thông thoáng; dọn sạch tàn dư thực vật sau thu hoạch; bón phân cân đối (tăng kali, hạn chế đạm quá mức).",
+    care:"Theo dõi cây, loại bỏ lá bệnh; giữ đất và không gian xung quanh thông thoáng; duy trì chế độ bón phân hợp lý.",
+    treatment:"Sử dụng thuốc trừ nấm: Validamycin, Hexaconazole, Propiconazole. Phun thuốc khi bệnh mới xuất hiện để hiệu quả cao. Kết hợp biện pháp sinh học như chế phẩm vi sinh kháng nấm."
+  },
+  "BỆNH ĐỐM LÁ LỚN": {
+    symptoms:"Xuất hiện đầu tiên ở lá già, sau đó lan lên các lá phía trên. Trên lá có vết đốm hình thoi hoặc không đều, màu nâu hoặc xám, viền nâu đỏ. Khi bệnh nặng, vết đốm liên kết, lan ra toàn bộ lá, làm lá khô và rách phần chót. Gây hại mạnh nhất khi cây có 7–8 lá trở lên.",
+    causes:"Do nấm Exserohilum turcicum (trước đây Helminthosporium turcicum). Nấm phát triển mạnh ở nhiệt độ 28–30°C, độ ẩm cao >80%, đất nghèo dinh dưỡng, chăm sóc kém.",
+    prevention:"Luân canh cây trồng để tránh tích tụ nguồn bệnh; tăng cường bón phân hữu cơ và kali, hạn chế đạm quá mức; giữ khoảng cách trồng hợp lý, ruộng thông thoáng.",
+    care:"Theo dõi lá già, loại bỏ lá bệnh; duy trì dinh dưỡng cân đối; thông thoáng ruộng vườn.",
+    treatment:"Sử dụng chế phẩm vi sinh Trichoderma spp.; phun thuốc khi bệnh mới xuất hiện: Propiconazole, Azoxystrobin, Tebuconazole. Luân phiên thuốc để tránh kháng thuốc."
+  },
+  "BỆNH PHẤN ĐEN": {
+    symptoms:"Xuất hiện ở bẹ lá, thân, bông cờ và bắp ngô. Vết bệnh ban đầu là nốt u sưng màu trắng, nhẵn, sau đó phình to và biến dạng. Bên trong vết u là khối rắn màu vàng trắng, sau đó chuyển thành bột đen. Khi bóp vết bệnh, khối bột đen dễ vỡ, gây thối hỏng, nhăn nhúm và dị dạng.",
+    causes:"Do nấm Ustilago maydis hoặc Ustilago zeae. Nấm tồn tại trên hạt giống, tàn dư cây bệnh, phát tán qua gió, nước tưới, xâm nhập qua vết thương cơ giới. Phát triển mạnh khi mật độ trồng dày, bón dư phân đạm, thời tiết mưa gió, độ ẩm cao.",
+    prevention:"Luân canh cây trồng, tránh trồng ngô liên tục trên cùng diện tích; xử lý hạt giống trước khi gieo bằng thuốc nấm; dọn sạch tàn dư cây bệnh; bón phân cân đối, hạn chế đạm, tăng kali và hữu cơ.",
+    care:"Kiểm tra ruộng thường xuyên, phát hiện sớm để xử lý kịp thời; duy trì thông thoáng ruộng vườn và chế độ dinh dưỡng hợp lý.",
+    treatment:"Sử dụng thuốc đặc trị: Antafungal (chế phẩm sinh học an toàn), thuốc chứa tebuconazole, propiconazole hoặc hexaconazole. Kết hợp chế phẩm vi sinh Trichoderma để tăng hiệu quả phòng trừ."
+  }
+};
 
-    async function checkCameraPermission() {
-      try {
-        const status = await navigator.permissions.query({ name: 'camera' });
-        if(status.state === 'denied') {
-          alert('Bạn chưa cấp quyền camera. Vui lòng bật quyền camera trong Cài đặt của trình duyệt.');
-          return false;
-        }
-        return true;
-      } catch(e) {
-        return true; // nếu trình duyệt không hỗ trợ Permissions API
-      }
-    }
+// Hàm giọng nói
+function speak(text){
+  const utter=new SpeechSynthesisUtterance(text);
+  utter.lang='vi-VN';
+  const voices=speechSynthesis.getVoices();
+  const vnFemale=voices.find(v=>/vi|vietnamese/i.test(v.lang)&&/female|woman/i.test(v.name.toLowerCase()))||voices.find(v=>/vi|vietnamese/i.test(v.lang));
+  if(vnFemale) utter.voice=vnFemale;
+  speechSynthesis.cancel();
+  speechSynthesis.speak(utter);
+}
 
-    async function startCamera(preferEnvironment = true) {
-      if(!(await checkCameraPermission())) return;
+// Load model
+async function loadModel(){
+  resultDiv.innerText="Đang tải mô hình...";
+  speak("Đang tải mô hình AI, vui lòng đợi.");
+  model = await tmImage.load(MODEL_URL + "model.json", MODEL_URL + "metadata.json");
+  resultDiv.innerText="✅ Mô hình sẵn sàng. Nhấn Bật camera.";
+  speak("Mô hình đã sẵn sàng. Nhấn Bật camera để bắt đầu.");
+}
+loadModel();
 
-      try {
-        await listVideoDevices();
-        let constraints;
-        if (videoDevices.length > 0) {
-          let back = videoDevices.find(d => /back|rear|environment|primary/i.test(d.label));
-          if(preferEnvironment && back) {
-            currentDeviceId = back.deviceId;
-            constraints = { video: { deviceId: { exact: currentDeviceId } } };
-          } else if(preferEnvironment) {
-            constraints = { video: { facingMode: "environment" } };
-          } else {
-            constraints = { video: { facingMode: "user" } };
-          }
-        } else {
-          constraints = { video: { facingMode: "environment" } };
-        }
+// Camera
+async function listVideoDevices(){ videoDevices = (await navigator.mediaDevices.enumerateDevices()).filter(d=>d.kind==='videoinput'); }
+async function startCamera(preferBack=true){
+  await listVideoDevices();
+  let constraints;
+  if(videoDevices.length>0){
+    let back = videoDevices.find(d=>/back|rear|environment|primary/i.test(d.label));
+    if(preferBack && back){ currentDeviceId=back.deviceId; constraints={video:{deviceId:{exact:currentDeviceId}}}; }
+    else constraints={video:{facingMode:preferBack?"environment":"user"}};
+  } else constraints={video:{facingMode:"environment"}};
+  if(stream){stream.getTracks().forEach(t=>t.stop()); stream=null;}
+  stream = await navigator.mediaDevices.getUserMedia(constraints);
+  video.srcObject=stream;
+  await video.play();
+  captureBtn.disabled=false; switchBtn.disabled=videoDevices.length<2; startBtn.disabled=true;
+  resultDiv.innerText="📸 Camera đã bật. Bạn có thể chụp ảnh."; speak("Camera đã bật, bạn có thể chụp ảnh.");
+}
+async function switchCamera(){ if(videoDevices.length<2) return; let idx=videoDevices.findIndex(d=>d.deviceId===currentDeviceId); currentDeviceId=videoDevices[(idx+1)%videoDevices.length].deviceId; await startCamera(false);}
+function captureImage(){
+  const canvas=document.createElement('canvas');
+  canvas.width=video.videoWidth; canvas.height=video.videoHeight;
+  canvas.getContext('2d').drawImage(video,0,0,canvas.width,canvas.height);
+  preview.src=canvas.toDataURL('image/jpeg'); preview.style.display='block';
+  analyzeBtn.disabled=false; resultDiv.innerText="📷 Ảnh đã chụp, nhấn phân tích."; speak("Ảnh đã chụp, nhấn phân tích để xem kết quả.");
+}
+async function analyzeImage(){
+  if(!model||!preview.src) return;
+  resultDiv.innerText="Đang phân tích..."; speak("Đang phân tích ảnh.");
+  await new Promise(r=>preview.complete?r():preview.onload=r);
+  const prediction = await model.predict(preview);
+  prediction.sort((a,b)=>b.probability-a.probability);
+  const top=prediction[0];
+  const className=top.className.toUpperCase();
+  const confidence=(top.probability*100).toFixed(1);
+  resultDiv.innerText=`Kết luận: ${className}. Độ tin cậy: ${confidence}%`;
+  speak(`Kết luận: ${className}. Độ tin cậy: ${confidence} phần trăm`);
+  showDetails(className);
+  detailsBtn.disabled=false;
+}
+function showDetails(className){
+  const data=diseaseDetails[className];
+  if(!data){detailsDiv.style.display='none'; return;}
+  symptomsEl.innerText=data.symptoms;
+  causesEl.innerText=data.causes;
+  preventionEl.innerText=data.prevention;
+  careEl.innerText=data.care;
+  treatmentEl.innerText=data.treatment;
+  detailsDiv.style.display='block';
+  speak(`Chi tiết bệnh ${className}. Biểu hiện: ${data.symptoms}. Nguyên nhân: ${data.causes}. Cách phòng: ${data.prevention}. Chăm sóc: ${data.care}. Điều trị: ${data.treatment}`);
+}
 
-        stopCamera();
-        stream = await navigator.mediaDevices.getUserMedia(constraints);
-        video.srcObject = stream;
-        await video.play();
-
-        captureBtn.disabled = false;
-        switchBtn.disabled = videoDevices.length < 2;
-        startBtn.disabled = true;
-        resultDiv.innerText = "📸 Camera đã bật. Bạn có thể chụp ảnh.";
-        speak("Camera đã bật, bạn có thể chụp ảnh.");
-      } catch(err) {
-        console.error("Không mở được camera:", err);
-        resultDiv.innerText = "❌ Lỗi mở camera: " + (err.message || err);
-        speak("Không thể mở camera. Vui lòng kiểm tra quyền truy cập camera và HTTPS.");
-      }
-    }
-
-    function stopCamera() {
-      if(stream) {
-        stream.getTracks().forEach(t => t.stop());
-        stream = null;
-      }
-      video.srcObject = null;
-      captureBtn.disabled = true;
-      analyzeBtn.disabled = true;
-      switchBtn.disabled = true;
-      startBtn.disabled = false;
-    }
-
-    async function switchCamera() {
-      if(!videoDevices || videoDevices.length < 2) return;
-      let ids = videoDevices.map(d => d.deviceId);
-      let idx = ids.indexOf(currentDeviceId);
-      let next = (idx + 1) % ids.length;
-      currentDeviceId = ids[next];
-      await startCamera(false);
-    }
-
-    function captureImage() {
-      if(!video || video.readyState < 2) {
-        resultDiv.innerText = "⚠️ Video chưa sẵn sàng để chụp.";
-        speak("Video chưa sẵn sàng, thử lại.");
-        return;
-      }
-      const canvas = document.createElement('canvas');
-      canvas.width = video.videoWidth || 640;
-      canvas.height = video.videoHeight || 480;
-      const ctx = canvas.getContext('2d');
-      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-      preview.src = canvas.toDataURL('image/jpeg');
-      preview.style.display = 'block';
-      analyzeBtn.disabled = false;
-      resultDiv.innerText = "📷 Ảnh đã được chụp. Bạn có thể phân tích.";
-      speak("Ảnh đã được chụp. Nhấn phân tích để xem kết quả.");
-    }
-
-    async function analyzeImage() {
-      if(!model) {
-        resultDiv.innerText = "⚠️ Mô hình chưa sẵn sàng.";
-        speak("Mô hình chưa sẵn sàng, vui lòng đợi.");
-        return;
-      }
-      if(!preview.src) {
-        resultDiv.innerText = "⚠️ Chưa có ảnh để phân tích.";
-        speak("Bạn chưa chụp ảnh, hãy chụp trước khi phân tích.");
-        return;
-      }
-
-      resultDiv.innerText = "Đang phân tích...";
-      try {
-        await ensureImageLoaded(preview);
-        const prediction = await model.predict(preview);
-        prediction.sort((a,b) => b.probability - a.probability);
-        const top = prediction[0];
-        const text = `Kết luận: ${top.className}. Độ tin cậy ${(top.probability*100).toFixed(1)} phần trăm.`;
-        resultDiv.innerText = text;
-        speak(text);
-      } catch(e) {
-        console.error("Lỗi phân tích:", e);
-        resultDiv.innerText = "❌ Lỗi phân tích: " + e;
-        speak("Lỗi khi phân tích, thử lại.");
-      }
-    }
-
-    function ensureImageLoaded(imgEl) {
-      return new Promise((resolve, reject) => {
-        if(!imgEl.src) return reject("No image source");
-        if(imgEl.complete && imgEl.naturalWidth !== 0) return resolve();
-        imgEl.onload = () => resolve();
-        imgEl.onerror = e => reject(e);
-      });
-    }
-
-    function speak(text) {
-      try {
-        const utter = new SpeechSynthesisUtterance(text);
-        utter.lang = 'vi-VN';
-        const voices = speechSynthesis.getVoices();
-        if(voices && voices.length>0){
-          const vnFemale = voices.find(v => /vi|vietnamese/i.test(v.lang) && /female|woman/i.test(v.name.toLowerCase()))
-                           || voices.find(v => /vi|vietnamese/i.test(v.lang));
-          if(vnFemale) utter.voice = vnFemale;
-        }
-        speechSynthesis.cancel();
-        speechSynthesis.speak(utter);
-      } catch(e) { console.warn("Speech error:", e); }
-    }
-
-    // Sự kiện
-    startBtn.addEventListener('click', () => startCamera(true));
-    switchBtn.addEventListener('click', switchCamera);
-    captureBtn.addEventListener('click', captureImage);
-    analyzeBtn.addEventListener('click', analyzeImage);
-    window.addEventListener('beforeunload', stopCamera);
-
-    // Load model khi trang load
-    loadModel();
-  </script>
+// Event
+startBtn.onclick = ()=>startCamera();
+switchBtn.onclick = ()=>switchCamera();
+captureBtn.onclick = ()=>captureImage();
+analyzeBtn.onclick = ()=>analyzeImage();
+detailsBtn.onclick = ()=>{ detailsDiv.style.display = detailsDiv.style.display==='block'?'none':'block'; };
+</script>
 </body>
 </html>
