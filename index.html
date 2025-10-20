@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Bạn của nhà nông 🌾</title>
+  <style>
+    body { font-family: Arial, sans-serif; background:#f3fffb; margin:0; padding:18px; text-align:center; }
+    h1 { margin:0 0 10px; color:#0b6b4f; }
+    p { margin:6px 0 12px; color:#2e2e2e; }
+    #videoWrap, #previewWrap { display:flex; justify-content:center; }
+    video, img { width:92%; max-width:360px; border-radius:12px; box-shadow:0 6px 18px rgba(0,0,0,0.12); }
+    #controls { margin-top:12px; }
+    button {
+      margin:6px; padding:12px 16px; font-size:16px; border-radius:10px; border:none; color:white;
+      background:#007b66; cursor:pointer;
+    }
+    button[disabled] { background:#9fcac2; cursor:not-allowed; }
+    #result { margin-top:14px; font-size:18px; color:#0b5a46; font-weight:700; min-height:48px; }
+    small { display:block; color:#666; margin-top:8px; }
+  </style>
+</head>
+<body>
+  <h1>🌾 Bạn của nhà nông</h1>
+  <p>Chụp lá cây — Phân tích bằng AI — Kết quả sẽ đọc bằng giọng nữ</p>
+
+  <div id="videoWrap">
+    <video id="webcam" autoplay playsinline muted></video>
+  </div>
+
+  <div id="previewWrap" style="margin-top:10px;">
+    <img id="preview" alt="Ảnh chụp sẽ hiện ở đây" style="display:none" />
+  </div>
+
+  <div id="controls">
+    <button id="startBtn">📷 Bật camera sau</button>
+    <button id="switchBtn" disabled>🔄 Chuyển camera</button>
+    <button id="captureBtn" disabled>📸 Chụp ảnh</button>
+    <button id="analyzeBtn" disabled>🧠 Phân tích</button>
+  </div>
+
+  <div id="result">Kết quả sẽ hiển thị ở đây...</div>
+  <small>Lưu ý: Mở bằng Chrome chính chủ, cho phép quyền Camera khi được hỏi.</small>
+
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@3.9.0"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@0.8/dist/teachablemachine-image.min.js"></script>
+
+  <script>
+    const MODEL_URL = "https://teachablemachine.withgoogle.com/models/YEWRSh9R8/";
+
+    const video = document.getElementById('webcam');
+    const preview = document.getElementById('preview');
+    const startBtn = document.getElementById('startBtn');
+    const switchBtn = document.getElementById('switchBtn');
+    const captureBtn = document.getElementById('captureBtn');
+    const analyzeBtn = document.getElementById('analyzeBtn');
+    const resultDiv = document.getElementById('result');
+
+    let model = null;
+    let stream = null;
+    let currentDeviceId = null;
+    let videoDevices = [];
+
+    // Load model
+    async function loadModel() {
+      try {
+        resultDiv.innerText = "Đang tải mô hình...";
+        model = await tmImage.load(MODEL_URL + "model.json", MODEL_URL + "metadata.json");
+        resultDiv.innerText = "✅ Mô hình sẵn sàng. Nhấn 'Bật camera sau'.";
+        speak("Mô hình đã sẵn sàng. Nhấn bật camera để bắt đầu.");
+      } catch (e) {
+        console.error(e);
+        resultDiv.innerText = "❌ Không thể tải mô hình: " + e;
+        speak("Không thể tải mô hình, vui lòng kiểm tra mạng.");
+      }
+    }
+
+    async function listVideoDevices() {
+      try {
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        videoDevices = devices.filter(d => d.kind === 'videoinput');
+      } catch (e) {
+        console.warn("Không lấy được thiết bị: ", e);
+      }
+    }
+
+    async function checkCameraPermission() {
+      try {
+        const status = await navigator.permissions.query({ name: 'camera' });
+        if(status.state === 'denied') {
+          alert('Bạn chưa cấp quyền camera. Vui lòng bật quyền camera trong Cài đặt của trình duyệt.');
+          return false;
+        }
+        return true;
+      } catch(e) {
+        return true; // nếu trình duyệt không hỗ trợ Permissions API
+      }
+    }
+
+    async function startCamera(preferEnvironment = true) {
+      if(!(await checkCameraPermission())) return;
+
+      try {
+        await listVideoDevices();
+        let constraints;
+        if (videoDevices.length > 0) {
+          let back = videoDevices.find(d => /back|rear|environment|primary/i.test(d.label));
+          if(preferEnvironment && back) {
+            currentDeviceId = back.deviceId;
+            constraints = { video: { deviceId: { exact: currentDeviceId } } };
+          } else if(preferEnvironment) {
+            constraints = { video: { facingMode: "environment" } };
+          } else {
+            constraints = { video: { facingMode: "user" } };
+          }
+        } else {
+          constraints = { video: { facingMode: "environment" } };
+        }
+
+        stopCamera();
+        stream = await navigator.mediaDevices.getUserMedia(constraints);
+        video.srcObject = stream;
+        await video.play();
+
+        captureBtn.disabled = false;
+        switchBtn.disabled = videoDevices.length < 2;
+        startBtn.disabled = true;
+        resultDiv.innerText = "📸 Camera đã bật. Bạn có thể chụp ảnh.";
+        speak("Camera đã bật, bạn có thể chụp ảnh.");
+      } catch(err) {
+        console.error("Không mở được camera:", err);
+        resultDiv.innerText = "❌ Lỗi mở camera: " + (err.message || err);
+        speak("Không thể mở camera. Vui lòng kiểm tra quyền truy cập camera và HTTPS.");
+      }
+    }
+
+    function stopCamera() {
+      if(stream) {
+        stream.getTracks().forEach(t => t.stop());
+        stream = null;
+      }
+      video.srcObject = null;
+      captureBtn.disabled = true;
+      analyzeBtn.disabled = true;
+      switchBtn.disabled = true;
+      startBtn.disabled = false;
+    }
+
+    async function switchCamera() {
+      if(!videoDevices || videoDevices.length < 2) return;
+      let ids = videoDevices.map(d => d.deviceId);
+      let idx = ids.indexOf(currentDeviceId);
+      let next = (idx + 1) % ids.length;
+      currentDeviceId = ids[next];
+      await startCamera(false);
+    }
+
+    function captureImage() {
+      if(!video || video.readyState < 2) {
+        resultDiv.innerText = "⚠️ Video chưa sẵn sàng để chụp.";
+        speak("Video chưa sẵn sàng, thử lại.");
+        return;
+      }
+      const canvas = document.createElement('canvas');
+      canvas.width = video.videoWidth || 640;
+      canvas.height = video.videoHeight || 480;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      preview.src = canvas.toDataURL('image/jpeg');
+      preview.style.display = 'block';
+      analyzeBtn.disabled = false;
+      resultDiv.innerText = "📷 Ảnh đã được chụp. Bạn có thể phân tích.";
+      speak("Ảnh đã được chụp. Nhấn phân tích để xem kết quả.");
+    }
+
+    async function analyzeImage() {
+      if(!model) {
+        resultDiv.innerText = "⚠️ Mô hình chưa sẵn sàng.";
+        speak("Mô hình chưa sẵn sàng, vui lòng đợi.");
+        return;
+      }
+      if(!preview.src) {
+        resultDiv.innerText = "⚠️ Chưa có ảnh để phân tích.";
+        speak("Bạn chưa chụp ảnh, hãy chụp trước khi phân tích.");
+        return;
+      }
+
+      resultDiv.innerText = "Đang phân tích...";
+      try {
+        await ensureImageLoaded(preview);
+        const prediction = await model.predict(preview);
+        prediction.sort((a,b) => b.probability - a.probability);
+        const top = prediction[0];
+        const text = `Kết luận: ${top.className}. Độ tin cậy ${(top.probability*100).toFixed(1)} phần trăm.`;
+        resultDiv.innerText = text;
+        speak(text);
+      } catch(e) {
+        console.error("Lỗi phân tích:", e);
+        resultDiv.innerText = "❌ Lỗi phân tích: " + e;
+        speak("Lỗi khi phân tích, thử lại.");
+      }
+    }
+
+    function ensureImageLoaded(imgEl) {
+      return new Promise((resolve, reject) => {
+        if(!imgEl.src) return reject("No image source");
+        if(imgEl.complete && imgEl.naturalWidth !== 0) return resolve();
+        imgEl.onload = () => resolve();
+        imgEl.onerror = e => reject(e);
+      });
+    }
+
+    function speak(text) {
+      try {
+        const utter = new SpeechSynthesisUtterance(text);
+        utter.lang = 'vi-VN';
+        const voices = speechSynthesis.getVoices();
+        if(voices && voices.length>0){
+          const vnFemale = voices.find(v => /vi|vietnamese/i.test(v.lang) && /female|woman/i.test(v.name.toLowerCase()))
+                           || voices.find(v => /vi|vietnamese/i.test(v.lang));
+          if(vnFemale) utter.voice = vnFemale;
+        }
+        speechSynthesis.cancel();
+        speechSynthesis.speak(utter);
+      } catch(e) { console.warn("Speech error:", e); }
+    }
+
+    // Sự kiện
+    startBtn.addEventListener('click', () => startCamera(true));
+    switchBtn.addEventListener('click', switchCamera);
+    captureBtn.addEventListener('click', captureImage);
+    analyzeBtn.addEventListener('click', analyzeImage);
+    window.addEventListener('beforeunload', stopCamera);
+
+    // Load model khi trang load
+    loadModel();
+  </script>
+</body>
+</html>
