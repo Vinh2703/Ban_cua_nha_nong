@@ -82,6 +82,7 @@
 const MODEL_URL = "https://teachablemachine.withgoogle.com/models/YEWRSh9R8/";
 let model = null, stream = null, currentDeviceId = null, videoDevices = [];
 let lastClassName = null;
+
 const diseaseDetails = {
   "BỆNH ĐỐM NÂU": {
     symptoms: "Xuất hiện các đốm nâu tròn, sau lan rộng làm khô lá.",
@@ -105,6 +106,7 @@ const diseaseDetails = {
     treatment: "Không cần xử lý thêm."
   }
 };
+
 const video = document.getElementById('webcam');
 const preview = document.getElementById('preview');
 const startBtn = document.getElementById('startBtn');
@@ -120,12 +122,14 @@ const causesEl = document.getElementById('causes');
 const preventionEl = document.getElementById('prevention');
 const careEl = document.getElementById('care');
 const treatmentEl = document.getElementById('treatment');
+
 function speak(text){
   const utter = new SpeechSynthesisUtterance(text);
   utter.lang = 'vi-VN';
   speechSynthesis.cancel();
   speechSynthesis.speak(utter);
 }
+
 async function loadModel(){
   try {
     resultDiv.innerText = "⏳ Đang tải mô hình...";
@@ -139,9 +143,11 @@ async function loadModel(){
   }
 }
 loadModel();
+
 async function listVideoDevices(){
   videoDevices = (await navigator.mediaDevices.enumerateDevices()).filter(d => d.kind === 'videoinput');
 }
+
 async function startCamera(preferBack = true){
   try {
     await listVideoDevices();
@@ -153,6 +159,7 @@ async function startCamera(preferBack = true){
         constraints = { video: { deviceId: { exact: currentDeviceId } } };
       } else constraints = { video: { facingMode: "environment" } };
     } else constraints = { video: true };
+
     if(stream){ stopCamera(); }
     stream = await navigator.mediaDevices.getUserMedia(constraints);
     video.srcObject = stream;
@@ -168,6 +175,7 @@ async function startCamera(preferBack = true){
     speak("Không thể bật camera. Hãy mở bằng trình duyệt Chrome và cấp quyền camera.");
   }
 }
+
 function stopCamera(){
   if(stream){
     stream.getTracks().forEach(t => t.stop());
@@ -180,12 +188,14 @@ function stopCamera(){
   analyzeBtn.disabled = true;
   resultDiv.innerText = "🛑 Camera đã tắt.";
 }
+
 async function switchCamera(){
   if(videoDevices.length < 2) return;
   let idx = videoDevices.findIndex(d => d.deviceId === currentDeviceId);
   currentDeviceId = videoDevices[(idx + 1) % videoDevices.length].deviceId;
   await startCamera(false);
 }
+
 function captureImage(){
   const canvas = document.createElement('canvas');
   canvas.width = video.videoWidth;
@@ -197,6 +207,7 @@ function captureImage(){
   resultDiv.innerText = "📷 Ảnh đã chụp, nhấn Phân tích.";
   speak("Ảnh đã chụp, nhấn phân tích để xem kết quả.");
 }
+
 async function analyzeImage(){
   if(!model){
     resultDiv.innerText = "⚠️ Mô hình chưa sẵn sàng.";
@@ -219,8 +230,10 @@ async function analyzeImage(){
   resultDiv.innerText = `Kết luận: ${className} (${confidence}%)`;
   speak(`Kết luận ${className}, độ tin cậy ${confidence} phần trăm.`);
   showDetails(className);
+  detailsBtn.disabled = false; // ✅ Kích hoạt nút chi tiết
   detailsDiv.style.display = 'none';
 }
+
 function showDetails(className){
   const data = diseaseDetails[className];
   if(!data){
@@ -232,9 +245,9 @@ function showDetails(className){
   preventionEl.innerText = data.prevention;
   careEl.innerText = data.care;
   treatmentEl.innerText = data.treatment;
-  detailsBtn.disabled = false;
   lastClassName = className;
 }
+
 detailsBtn.onclick = () => {
   if(detailsDiv.style.display === 'block'){
     detailsDiv.style.display = 'none';
@@ -246,6 +259,7 @@ detailsBtn.onclick = () => {
     }
   }
 };
+
 startBtn.onclick = () => startCamera();
 switchBtn.onclick = () => switchCamera();
 stopBtn.onclick = () => stopCamera();
