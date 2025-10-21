@@ -51,23 +51,9 @@
       border-radius: 8px;
       display: none;
       text-align: left;
-      max-width: 720px;
-      margin-left: auto;
-      margin-right: auto;
     }
-    #details table {
-      width: 100%;
-      border-collapse: collapse;
-    }
-    #details th, #details td {
-      padding: 6px 8px;
-      border-bottom: 1px solid #dcedc8;
-      vertical-align: top;
-      text-align: left;
-    }
-    #details th {
-      width: 28%;
-      color: #2e7d32;
+    #details p {
+      margin: 5px 0;
     }
   </style>
 </head>
@@ -84,12 +70,14 @@
     <button id="detailsBtn" disabled>📖 Xem chi tiết</button>
   </div>
   <div id="result">Chưa có dữ liệu.</div>
-
-  <div id="details" aria-live="polite">
+  <div id="details">
     <h3>Chi tiết bệnh:</h3>
-    <div id="detailsTableContainer"></div>
+    <p><b>Triệu chứng:</b> <span id="symptoms"></span></p>
+    <p><b>Nguyên nhân:</b> <span id="causes"></span></p>
+    <p><b>Phòng ngừa:</b> <span id="prevention"></span></p>
+    <p><b>Chăm sóc:</b> <span id="care"></span></p>
+    <p><b>Điều trị:</b> <span id="treatment"></span></p>
   </div>
-
 <script>
 const MODEL_URL = "https://teachablemachine.withgoogle.com/models/YEWRSh9R8/";
 let model = null, stream = null, currentDeviceId = null, videoDevices = [];
@@ -129,18 +117,19 @@ const analyzeBtn = document.getElementById('analyzeBtn');
 const detailsBtn = document.getElementById('detailsBtn');
 const resultDiv = document.getElementById('result');
 const detailsDiv = document.getElementById('details');
-const detailsTableContainer = document.getElementById('detailsTableContainer');
+const symptomsEl = document.getElementById('symptoms');
+const causesEl = document.getElementById('causes');
+const preventionEl = document.getElementById('prevention');
+const careEl = document.getElementById('care');
+const treatmentEl = document.getElementById('treatment');
 
 function speak(text){
-  if(!("speechSynthesis" in window)) return;
   const utter = new SpeechSynthesisUtterance(text);
   utter.lang = 'vi-VN';
-  // cancel previous to avoid overlapping reads
   speechSynthesis.cancel();
   speechSynthesis.speak(utter);
 }
 
-/* Nạp mô hình */
 async function loadModel(){
   try {
     resultDiv.innerText = "⏳ Đang tải mô hình...";
@@ -151,18 +140,12 @@ async function loadModel(){
   } catch (e) {
     resultDiv.innerText = "❌ Lỗi khi tải mô hình.";
     console.error(e);
-    speak("Lỗi khi tải mô hình. Vui lòng kiểm tra đường dẫn hoặc mạng.");
   }
 }
 loadModel();
 
 async function listVideoDevices(){
-  try {
-    const devices = await navigator.mediaDevices.enumerateDevices();
-    videoDevices = devices.filter(d => d.kind === 'videoinput');
-  } catch (e) {
-    videoDevices = [];
-  }
+  videoDevices = (await navigator.mediaDevices.enumerateDevices()).filter(d => d.kind === 'videoinput');
 }
 
 async function startCamera(preferBack = true){
@@ -203,12 +186,7 @@ function stopCamera(){
   stopBtn.disabled = true;
   captureBtn.disabled = true;
   analyzeBtn.disabled = true;
-  detailsBtn.disabled = true;
   resultDiv.innerText = "🛑 Camera đã tắt.";
-  preview.style.display = 'none';
-  preview.src = '';
-  detailsDiv.style.display = 'none';
-  lastClassName = null;
 }
 
 async function switchCamera(){
@@ -219,10 +197,6 @@ async function switchCamera(){
 }
 
 function captureImage(){
-  if(!video.videoWidth || !video.videoHeight){
-    alert('⚠️ Ảnh chưa sẵn sàng, thử lại.');
-    return;
-  }
   const canvas = document.createElement('canvas');
   canvas.width = video.videoWidth;
   canvas.height = video.videoHeight;
@@ -232,9 +206,6 @@ function captureImage(){
   analyzeBtn.disabled = false;
   resultDiv.innerText = "📷 Ảnh đã chụp, nhấn Phân tích.";
   speak("Ảnh đã chụp, nhấn phân tích để xem kết quả.");
-  detailsDiv.style.display = 'none';
-  lastClassName = null;
-  detailsBtn.disabled = true;
 }
 
 async function analyzeImage(){
@@ -251,95 +222,40 @@ async function analyzeImage(){
   resultDiv.innerText = "🔍 Đang phân tích...";
   speak("Đang phân tích ảnh, vui lòng đợi.");
   await new Promise(r => preview.complete ? r() : preview.onload = r);
-
-  try {
-    const prediction = await model.predict(preview);
-    prediction.sort((a,b) => b.probability - a.probability);
-    const top = prediction[0];
-    const classNameRaw = top.className || "";
-    const className = classNameRaw.toString().toUpperCase().trim();
-    const confidence = (top.probability * 100).toFixed(1);
-    resultDiv.innerText = `Kết luận: ${className} (${confidence}%)`;
-    speak(`Kết luận ${className}, độ tin cậy ${confidence} phần trăm.`);
-    // lưu nhãn để nút xem chi tiết dùng
-    lastClassName = className;
-    // chỉ bật nút chi tiết nếu có dữ liệu chi tiết sẵn
-    detailsBtn.disabled = !(className in diseaseDetails);
-    // Ẩn chi tiết ban đầu (người dùng bấm để mở)
-    detailsDiv.style.display = 'none';
-    // Nếu không có chi tiết, thông báo
-    if(!(className in diseaseDetails)){
-      detailsTableContainer.innerHTML = `<p>Không có thông tin chi tiết cho kết luận "<b>${className}</b>".</p>`;
-      speak("Xin lỗi, không có thông tin chi tiết cho kết luận này.");
-    } else {
-      // Chuẩn bị nội dung chi tiết (không tự động hiển thị)
-      renderDetails(className);
-    }
-  } catch (err) {
-    console.error(err);
-    resultDiv.innerText = "❌ Lỗi khi phân tích ảnh.";
-    speak("Lỗi khi phân tích ảnh, vui lòng thử lại.");
-  }
+  const prediction = await model.predict(preview);
+  prediction.sort((a,b) => b.probability - a.probability);
+  const top = prediction[0];
+  const className = top.className.toUpperCase();
+  const confidence = (top.probability * 100).toFixed(1);
+  resultDiv.innerText = `Kết luận: ${className} (${confidence}%)`;
+  speak(`Kết luận ${className}, độ tin cậy ${confidence} phần trăm.`);
+  lastClassName = className;
+  detailsBtn.disabled = false;
+  detailsDiv.style.display = 'none';
 }
 
-/* Tạo HTML bảng chi tiết */
-function renderDetails(className){
-  const data = diseaseDetails[className];
-  if(!data){
-    detailsTableContainer.innerHTML = `<p>Không có thông tin chi tiết.</p>`;
-    return;
-  }
-  const html = `
-    <table>
-      <tr><th>Chuẩn đoán</th><td>${escapeHtml(className)}</td></tr>
-      <tr><th>Triệu chứng</th><td>${escapeHtml(data.symptoms)}</td></tr>
-      <tr><th>Nguyên nhân</th><td>${escapeHtml(data.causes)}</td></tr>
-      <tr><th>Phòng ngừa</th><td>${escapeHtml(data.prevention)}</td></tr>
-      <tr><th>Chăm sóc</th><td>${escapeHtml(data.care)}</td></tr>
-      <tr><th>Điều trị</th><td>${escapeHtml(data.treatment)}</td></tr>
-    </table>
-  `;
-  detailsTableContainer.innerHTML = html;
-}
-
-/* Đọc to từng mục chi tiết (tăng trải nghiệm) */
-function speakDetails(className){
-  const data = diseaseDetails[className];
-  if(!data) return;
-  // đọc từng phần cách nhau bằng khoảng dừng ngắn
-  const full = `Chuẩn đoán: ${className}. Triệu chứng: ${data.symptoms}. Nguyên nhân: ${data.causes}. Cách phòng ngừa: ${data.prevention}. Chăm sóc: ${data.care}. Điều trị: ${data.treatment}.`;
-  speak(full);
-}
-
-/* Nút Xem chi tiết — toggle hiển thị và đọc */
 detailsBtn.onclick = () => {
-  if(!lastClassName) return;
-  if(detailsDiv.style.display === 'block'){
-    detailsDiv.style.display = 'none';
-  } else {
-    // đảm bảo nội dung đã được render
-    if(lastClassName in diseaseDetails && detailsTableContainer.innerHTML.trim() === ''){
-      renderDetails(lastClassName);
-    }
-    detailsDiv.style.display = 'block';
-    // đọc chi tiết
-    speakDetails(lastClassName);
-  }
+  if (!lastClassName) return;
+  const data = diseaseDetails[lastClassName];
+  if (!data) return;
+
+  symptomsEl.innerText = data.symptoms;
+  causesEl.innerText = data.causes;
+  preventionEl.innerText = data.prevention;
+  careEl.innerText = data.care;
+  treatmentEl.innerText = data.treatment;
+
+  detailsDiv.style.display = 'block';
+
+  const narration = `Triệu chứng: ${data.symptoms}. Nguyên nhân: ${data.causes}. Phòng ngừa: ${data.prevention}. Chăm sóc: ${data.care}. Điều trị: ${data.treatment}.`;
+  speak(narration);
 };
 
-/* Helpers */
-function escapeHtml(text){
-  if(!text) return '';
-  return text.replace(/[&<>"']/g, function(m){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]; });
-}
-
-/* Event bindings nút khác */
 startBtn.onclick = () => startCamera();
 switchBtn.onclick = () => switchCamera();
 stopBtn.onclick = () => stopCamera();
 captureBtn.onclick = () => captureImage();
 analyzeBtn.onclick = () => analyzeImage();
-
 </script>
 </body>
 </html>
