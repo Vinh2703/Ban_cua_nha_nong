@@ -230,7 +230,7 @@ async function analyzeImage(){
   resultDiv.innerText = `Kết luận: ${className} (${confidence}%)`;
   speak(`Kết luận ${className}, độ tin cậy ${confidence} phần trăm.`);
   showDetails(className);
-  detailsBtn.disabled = false; // ✅ Kích hoạt nút chi tiết
+  detailsBtn.disabled = false;
   detailsDiv.style.display = 'none';
 }
 
@@ -253,9 +253,10 @@ detailsBtn.onclick = () => {
     detailsDiv.style.display = 'none';
   } else {
     if(lastClassName){
+      const data = diseaseDetails[lastClassName];
       showDetails(lastClassName);
       detailsDiv.style.display = 'block';
-      speak("Hiển thị chi tiết bệnh.");
+      speak(`Triệu chứng: ${data.symptoms}. Nguyên nhân: ${data.causes}. Phòng ngừa: ${data.prevention}. Chăm sóc: ${data.care}. Điều trị: ${data.treatment}.`);
     }
   }
 };
