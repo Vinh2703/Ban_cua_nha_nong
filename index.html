@@ -4,11 +4,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>AI Nhận diện bệnh trên lá</title>
-
-  <!-- TensorFlow.js và Teachable Machine -->
   <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@3.9.0"></script>
   <script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@0.8/dist/teachablemachine-image.min.js"></script>
-
   <style>
     body {
       font-family: Arial, sans-serif;
@@ -55,16 +52,15 @@
       display: none;
       text-align: left;
     }
-    #details p { margin: 5px 0; }
+    #details p {
+      margin: 5px 0;
+    }
   </style>
 </head>
-
 <body>
   <h1>🌿 AI Nhận diện bệnh trên lá</h1>
-
-  <video id="webcam" autoplay playsinline muted></video>
+  <video id="webcam" autoplay playsinline></video>
   <img id="preview" style="display:none;">
-
   <div>
     <button id="startBtn">📷 Bật camera</button>
     <button id="switchBtn" disabled>🔄 Đổi camera</button>
@@ -73,9 +69,7 @@
     <button id="analyzeBtn" disabled>🤖 Phân tích</button>
     <button id="detailsBtn" disabled>📖 Xem chi tiết</button>
   </div>
-
   <div id="result">Chưa có dữ liệu.</div>
-
   <div id="details">
     <h3>Chi tiết bệnh:</h3>
     <p><b>Triệu chứng:</b> <span id="symptoms"></span></p>
@@ -84,183 +78,179 @@
     <p><b>Chăm sóc:</b> <span id="care"></span></p>
     <p><b>Điều trị:</b> <span id="treatment"></span></p>
   </div>
-
-  <script>
-  const MODEL_URL = "https://teachablemachine.withgoogle.com/models/YEWRSh9R8/";
-  let model = null, stream = null, currentDeviceId = null, videoDevices = [];
-
-  const diseaseDetails = {
-    "BỆNH ĐỐM NÂU": {
-      symptoms: "Xuất hiện các đốm nâu tròn, sau lan rộng làm khô lá.",
-      causes: "Nấm Cercospora sp phát triển trong điều kiện ẩm ướt.",
-      prevention: "Không tưới quá ẩm, tỉa thưa lá, luân canh cây trồng.",
-      care: "Giữ vườn thông thoáng, loại bỏ lá bệnh.",
-      treatment: "Phun thuốc gốc đồng hoặc Mancozeb theo hướng dẫn."
-    },
-    "BỆNH KHÔ LÁ": {
-      symptoms: "Lá khô từ mép vào, chuyển vàng, dễ rụng.",
-      causes: "Do nấm Alternaria sp gây ra.",
-      prevention: "Tránh tưới nước lên lá, kiểm soát độ ẩm.",
-      care: "Thu gom lá bệnh tiêu hủy.",
-      treatment: "Phun Daconil hoặc Score theo tỷ lệ 1.5ml/lít nước."
-    },
-    "KHỎE MẠNH": {
-      symptoms: "Lá xanh đều, không có vết bệnh.",
-      causes: "Điều kiện sinh trưởng tốt.",
-      prevention: "Tiếp tục chăm sóc bình thường.",
-      care: "Duy trì bón phân và tưới nước hợp lý.",
-      treatment: "Không cần xử lý thêm."
+<script>
+const MODEL_URL = "https://teachablemachine.withgoogle.com/models/YEWRSh9R8/";
+let model = null, stream = null, currentDeviceId = null, videoDevices = [];
+let lastClassName = null;
+const diseaseDetails = {
+  "BỆNH ĐỐM NÂU": {
+    symptoms: "Xuất hiện các đốm nâu tròn, sau lan rộng làm khô lá.",
+    causes: "Nấm Cercospora sp phát triển trong điều kiện ẩm ướt.",
+    prevention: "Không tưới quá ẩm, tỉa thưa lá, luân canh cây trồng.",
+    care: "Giữ vườn thông thoáng, loại bỏ lá bệnh.",
+    treatment: "Phun thuốc gốc đồng hoặc Mancozeb theo hướng dẫn."
+  },
+  "BỆNH KHÔ LÁ": {
+    symptoms: "Lá khô từ mép vào, chuyển vàng, dễ rụng.",
+    causes: "Do nấm Alternaria sp gây ra.",
+    prevention: "Tránh tưới nước lên lá, kiểm soát độ ẩm.",
+    care: "Thu gom lá bệnh tiêu hủy.",
+    treatment: "Phun Daconil hoặc Score theo tỷ lệ 1.5ml/lít nước."
+  },
+  "KHỎE MẠNH": {
+    symptoms: "Lá xanh đều, không có vết bệnh.",
+    causes: "Điều kiện sinh trưởng tốt.",
+    prevention: "Tiếp tục chăm sóc bình thường.",
+    care: "Duy trì bón phân và tưới nước hợp lý.",
+    treatment: "Không cần xử lý thêm."
+  }
+};
+const video = document.getElementById('webcam');
+const preview = document.getElementById('preview');
+const startBtn = document.getElementById('startBtn');
+const switchBtn = document.getElementById('switchBtn');
+const stopBtn = document.getElementById('stopBtn');
+const captureBtn = document.getElementById('captureBtn');
+const analyzeBtn = document.getElementById('analyzeBtn');
+const detailsBtn = document.getElementById('detailsBtn');
+const resultDiv = document.getElementById('result');
+const detailsDiv = document.getElementById('details');
+const symptomsEl = document.getElementById('symptoms');
+const causesEl = document.getElementById('causes');
+const preventionEl = document.getElementById('prevention');
+const careEl = document.getElementById('care');
+const treatmentEl = document.getElementById('treatment');
+function speak(text){
+  const utter = new SpeechSynthesisUtterance(text);
+  utter.lang = 'vi-VN';
+  speechSynthesis.cancel();
+  speechSynthesis.speak(utter);
+}
+async function loadModel(){
+  try {
+    resultDiv.innerText = "⏳ Đang tải mô hình...";
+    await tf.ready();
+    model = await tmImage.load(MODEL_URL + "model.json", MODEL_URL + "metadata.json");
+    resultDiv.innerText = "✅ Mô hình sẵn sàng. Nhấn Bật camera.";
+    speak("Mô hình đã sẵn sàng, nhấn bật camera để bắt đầu.");
+  } catch (e) {
+    resultDiv.innerText = "❌ Lỗi khi tải mô hình.";
+    console.error(e);
+  }
+}
+loadModel();
+async function listVideoDevices(){
+  videoDevices = (await navigator.mediaDevices.enumerateDevices()).filter(d => d.kind === 'videoinput');
+}
+async function startCamera(preferBack = true){
+  try {
+    await listVideoDevices();
+    let constraints;
+    if(videoDevices.length > 0){
+      let back = videoDevices.find(d => /back|environment/i.test(d.label));
+      if(preferBack && back){
+        currentDeviceId = back.deviceId;
+        constraints = { video: { deviceId: { exact: currentDeviceId } } };
+      } else constraints = { video: { facingMode: "environment" } };
+    } else constraints = { video: true };
+    if(stream){ stopCamera(); }
+    stream = await navigator.mediaDevices.getUserMedia(constraints);
+    video.srcObject = stream;
+    captureBtn.disabled = false;
+    stopBtn.disabled = false;
+    switchBtn.disabled = videoDevices.length < 2;
+    startBtn.disabled = true;
+    resultDiv.innerText = "📸 Camera đã bật, bạn có thể chụp ảnh.";
+    speak("Camera đã bật, bạn có thể chụp ảnh.");
+  } catch (err) {
+    console.error(err);
+    alert("⚠️ Không thể bật camera. Hãy mở file này bằng Chrome và cho phép truy cập camera.");
+    speak("Không thể bật camera. Hãy mở bằng trình duyệt Chrome và cấp quyền camera.");
+  }
+}
+function stopCamera(){
+  if(stream){
+    stream.getTracks().forEach(t => t.stop());
+    stream = null;
+  }
+  video.srcObject = null;
+  startBtn.disabled = false;
+  stopBtn.disabled = true;
+  captureBtn.disabled = true;
+  analyzeBtn.disabled = true;
+  resultDiv.innerText = "🛑 Camera đã tắt.";
+}
+async function switchCamera(){
+  if(videoDevices.length < 2) return;
+  let idx = videoDevices.findIndex(d => d.deviceId === currentDeviceId);
+  currentDeviceId = videoDevices[(idx + 1) % videoDevices.length].deviceId;
+  await startCamera(false);
+}
+function captureImage(){
+  const canvas = document.createElement('canvas');
+  canvas.width = video.videoWidth;
+  canvas.height = video.videoHeight;
+  canvas.getContext('2d').drawImage(video, 0, 0);
+  preview.src = canvas.toDataURL('image/jpeg');
+  preview.style.display = 'block';
+  analyzeBtn.disabled = false;
+  resultDiv.innerText = "📷 Ảnh đã chụp, nhấn Phân tích.";
+  speak("Ảnh đã chụp, nhấn phân tích để xem kết quả.");
+}
+async function analyzeImage(){
+  if(!model){
+    resultDiv.innerText = "⚠️ Mô hình chưa sẵn sàng.";
+    speak("Mô hình chưa sẵn sàng, vui lòng đợi.");
+    return;
+  }
+  if(!preview.src){
+    resultDiv.innerText = "⚠️ Bạn cần chụp ảnh trước khi phân tích.";
+    speak("Bạn cần chụp ảnh trước khi phân tích.");
+    return;
+  }
+  resultDiv.innerText = "🔍 Đang phân tích...";
+  speak("Đang phân tích ảnh, vui lòng đợi.");
+  await new Promise(r => preview.complete ? r() : preview.onload = r);
+  const prediction = await model.predict(preview);
+  prediction.sort((a,b) => b.probability - a.probability);
+  const top = prediction[0];
+  const className = top.className.toUpperCase();
+  const confidence = (top.probability * 100).toFixed(1);
+  resultDiv.innerText = `Kết luận: ${className} (${confidence}%)`;
+  speak(`Kết luận ${className}, độ tin cậy ${confidence} phần trăm.`);
+  showDetails(className);
+  detailsDiv.style.display = 'none';
+}
+function showDetails(className){
+  const data = diseaseDetails[className];
+  if(!data){
+    detailsDiv.style.display = 'none';
+    return;
+  }
+  symptomsEl.innerText = data.symptoms;
+  causesEl.innerText = data.causes;
+  preventionEl.innerText = data.prevention;
+  careEl.innerText = data.care;
+  treatmentEl.innerText = data.treatment;
+  detailsBtn.disabled = false;
+  lastClassName = className;
+}
+detailsBtn.onclick = () => {
+  if(detailsDiv.style.display === 'block'){
+    detailsDiv.style.display = 'none';
+  } else {
+    if(lastClassName){
+      showDetails(lastClassName);
+      detailsDiv.style.display = 'block';
+      speak("Hiển thị chi tiết bệnh.");
     }
-  };
-
-  const video = document.getElementById('webcam');
-  const preview = document.getElementById('preview');
-  const startBtn = document.getElementById('startBtn');
-  const switchBtn = document.getElementById('switchBtn');
-  const stopBtn = document.getElementById('stopBtn');
-  const captureBtn = document.getElementById('captureBtn');
-  const analyzeBtn = document.getElementById('analyzeBtn');
-  const detailsBtn = document.getElementById('detailsBtn');
-  const resultDiv = document.getElementById('result');
-  const detailsDiv = document.getElementById('details');
-  const symptomsEl = document.getElementById('symptoms');
-  const causesEl = document.getElementById('causes');
-  const preventionEl = document.getElementById('prevention');
-  const careEl = document.getElementById('care');
-  const treatmentEl = document.getElementById('treatment');
-
-  function speak(text){
-    const utter = new SpeechSynthesisUtterance(text);
-    utter.lang = 'vi-VN';
-    speechSynthesis.cancel();
-    speechSynthesis.speak(utter);
   }
-
-  async function loadModel(){
-    try {
-      resultDiv.innerText = "⏳ Đang tải mô hình...";
-      await tf.ready();
-      model = await tmImage.load(MODEL_URL + "model.json", MODEL_URL + "metadata.json");
-      resultDiv.innerText = "✅ Mô hình sẵn sàng. Nhấn Bật camera.";
-      speak("Mô hình đã sẵn sàng, nhấn bật camera để bắt đầu.");
-    } catch (e) {
-      resultDiv.innerText = "❌ Lỗi khi tải mô hình.";
-      console.error(e);
-    }
-  }
-  loadModel();
-
-  async function listVideoDevices(){
-    videoDevices = (await navigator.mediaDevices.enumerateDevices()).filter(d => d.kind === 'videoinput');
-  }
-
-  async function startCamera(preferBack = true){
-    try {
-      await listVideoDevices();
-      let constraints;
-      if(videoDevices.length > 0){
-        let back = videoDevices.find(d => /back|environment/i.test(d.label));
-        if(preferBack && back){
-          currentDeviceId = back.deviceId;
-          constraints = { video: { deviceId: { exact: currentDeviceId } } };
-        } else constraints = { video: { facingMode: "environment" } };
-      } else constraints = { video: true };
-
-      if(stream){ stopCamera(); }
-      stream = await navigator.mediaDevices.getUserMedia(constraints);
-      video.srcObject = stream;
-
-      captureBtn.disabled = false;
-      stopBtn.disabled = false;
-      switchBtn.disabled = videoDevices.length < 2;
-      startBtn.disabled = true;
-      resultDiv.innerText = "📸 Camera đã bật, bạn có thể chụp ảnh.";
-      speak("Camera đã bật, bạn có thể chụp ảnh.");
-    } catch (err) {
-      console.error(err);
-      alert("⚠️ Không thể bật camera. Hãy mở file này bằng Chrome và cho phép truy cập camera.");
-      speak("Không thể bật camera. Hãy mở bằng trình duyệt Chrome và cấp quyền camera.");
-    }
-  }
-
-  function stopCamera(){
-    if(stream){
-      stream.getTracks().forEach(t => t.stop());
-      stream = null;
-    }
-    video.srcObject = null;
-    startBtn.disabled = false;
-    stopBtn.disabled = true;
-    captureBtn.disabled = true;
-    analyzeBtn.disabled = true;
-    resultDiv.innerText = "🛑 Camera đã tắt.";
-  }
-
-  async function switchCamera(){
-    if(videoDevices.length < 2) return;
-    let idx = videoDevices.findIndex(d => d.deviceId === currentDeviceId);
-    currentDeviceId = videoDevices[(idx + 1) % videoDevices.length].deviceId;
-    await startCamera(false);
-  }
-
-  function captureImage(){
-    const canvas = document.createElement('canvas');
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-    canvas.getContext('2d').drawImage(video, 0, 0);
-    preview.src = canvas.toDataURL('image/jpeg');
-    preview.style.display = 'block';
-    analyzeBtn.disabled = false;
-    resultDiv.innerText = "📷 Ảnh đã chụp, nhấn Phân tích.";
-    speak("Ảnh đã chụp, nhấn phân tích để xem kết quả.");
-  }
-
-  async function analyzeImage(){
-    if(!model){
-      resultDiv.innerText = "⚠️ Mô hình chưa sẵn sàng.";
-      speak("Mô hình chưa sẵn sàng, vui lòng đợi.");
-      return;
-    }
-    if(!preview.src){
-      resultDiv.innerText = "⚠️ Bạn cần chụp ảnh trước khi phân tích.";
-      speak("Bạn cần chụp ảnh trước khi phân tích.");
-      return;
-    }
-    resultDiv.innerText = "🔍 Đang phân tích...";
-    speak("Đang phân tích ảnh, vui lòng đợi.");
-
-    await new Promise(r => preview.complete ? r() : preview.onload = r);
-
-    const prediction = await model.predict(preview);
-    prediction.sort((a,b) => b.probability - a.probability);
-    const top = prediction[0];
-    const className = top.className.toUpperCase();
-    const confidence = (top.probability * 100).toFixed(1);
-    resultDiv.innerText = `Kết luận: ${className} (${confidence}%)`;
-    speak(`Kết luận ${className}, độ tin cậy ${confidence} phần trăm.`);
-    showDetails(className);
-  }
-
-  function showDetails(className){
-    const data = diseaseDetails[className];
-    if(!data){ detailsDiv.style.display = 'none'; return; }
-    symptomsEl.innerText = data.symptoms;
-    causesEl.innerText = data.causes;
-    preventionEl.innerText = data.prevention;
-    careEl.innerText = data.care;
-    treatmentEl.innerText = data.treatment;
-    detailsDiv.style.display = 'block';
-    detailsBtn.disabled = false;
-  }
-
-  startBtn.onclick = () => startCamera();
-  switchBtn.onclick = () => switchCamera();
-  stopBtn.onclick = () => stopCamera();
-  captureBtn.onclick = () => captureImage();
-  analyzeBtn.onclick = () => analyzeImage();
-  detailsBtn.onclick = () => {
-    detailsDiv.style.display = detailsDiv.style.display === 'block' ? 'none' : 'block';
-  };
-  </script>
+};
+startBtn.onclick = () => startCamera();
+switchBtn.onclick = () => switchCamera();
+stopBtn.onclick = () => stopCamera();
+captureBtn.onclick = () => captureImage();
+analyzeBtn.onclick = () => analyzeImage();
+</script>
 </body>
 </html>
