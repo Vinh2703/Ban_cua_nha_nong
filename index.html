@@ -55,9 +55,7 @@
       display: none;
       text-align: left;
     }
-    #details p {
-      margin: 5px 0;
-    }
+    #details p { margin: 5px 0; }
   </style>
 </head>
 
@@ -72,6 +70,7 @@
   <div>
     <button id="startBtn">📷 Bật camera</button>
     <button id="switchBtn" disabled>🔄 Đổi camera</button>
+    <button id="stopBtn" disabled>🛑 Tắt camera</button>
     <button id="captureBtn" disabled>📸 Chụp ảnh</button>
     <button id="analyzeBtn" disabled>🤖 Phân tích</button>
     <button id="detailsBtn" disabled>📖 Xem chi tiết</button>
@@ -90,9 +89,7 @@
     <p><b>Điều trị:</b> <span id="treatment"></span></p>
   </div>
 
-  <!-- Script chính -->
   <script>
-  // ====== CẤU HÌNH & DỮ LIỆU ======
   const MODEL_URL = "https://teachablemachine.withgoogle.com/models/YEWRSh9R8/";
   let model = null, stream = null, currentDeviceId = null, videoDevices = [];
 
@@ -120,11 +117,11 @@
     }
   };
 
-  // ====== LIÊN KẾT TỚI PHẦN TỬ HTML ======
   const video = document.getElementById('webcam');
   const preview = document.getElementById('preview');
   const startBtn = document.getElementById('startBtn');
   const switchBtn = document.getElementById('switchBtn');
+  const stopBtn = document.getElementById('stopBtn');
   const captureBtn = document.getElementById('captureBtn');
   const analyzeBtn = document.getElementById('analyzeBtn');
   const detailsBtn = document.getElementById('detailsBtn');
@@ -136,121 +133,147 @@
   const careEl = document.getElementById('care');
   const treatmentEl = document.getElementById('treatment');
 
-  // ====== GIỌNG NÓI ======
-  speechSynthesis.onvoiceschanged = () => {};
+  // Giọng nói
   function speak(text){
     const utter = new SpeechSynthesisUtterance(text);
     utter.lang = 'vi-VN';
-    const voices = speechSynthesis.getVoices();
-    const vn = voices.find(v=>/vi|vietnamese/i.test(v.lang));
-    if(vn) utter.voice = vn;
     speechSynthesis.cancel();
     speechSynthesis.speak(utter);
   }
 
-  // ====== TẢI MÔ HÌNH ======
+  // Tải mô hình
   async function loadModel(){
-    resultDiv.innerText = "⏳ Đang tải mô hình...";
-    speak("Đang tải mô hình trí tuệ nhân tạo, vui lòng đợi.");
-    await tf.ready();
-    model = await tmImage.load(MODEL_URL + "model.json", MODEL_URL + "metadata.json");
-    resultDiv.innerText = "✅ Mô hình đã sẵn sàng. Nhấn Bật camera.";
-    speak("Mô hình đã sẵn sàng. Nhấn Bật camera để bắt đầu.");
+    try {
+      resultDiv.innerText = "⏳ Đang tải mô hình...";
+      await tf.ready();
+      model = await tmImage.load(MODEL_URL + "model.json", MODEL_URL + "metadata.json");
+      resultDiv.innerText = "✅ Mô hình sẵn sàng. Nhấn Bật camera.";
+      speak("Mô hình đã sẵn sàng, nhấn bật camera để bắt đầu.");
+    } catch (e) {
+      resultDiv.innerText = "❌ Lỗi khi tải mô hình.";
+      console.error(e);
+    }
   }
   loadModel();
 
-  // ====== CAMERA ======
+  // Liệt kê camera
   async function listVideoDevices(){
-    videoDevices = (await navigator.mediaDevices.enumerateDevices()).filter(d=>d.kind==='videoinput');
+    videoDevices = (await navigator.mediaDevices.enumerateDevices()).filter(d => d.kind === 'videoinput');
   }
 
-  async function startCamera(preferBack=true){
-    await listVideoDevices();
-    let constraints;
-    if(videoDevices.length>0){
-      let back = videoDevices.find(d=>/back|rear|environment/i.test(d.label));
-      if(preferBack && back){
-        currentDeviceId = back.deviceId;
-        constraints = { video:{deviceId:{exact:currentDeviceId}} };
-      } else constraints = { video:{facingMode:"environment"} };
-    } else constraints = { video:true };
+  // Bật camera
+  async function startCamera(preferBack = true){
+    try {
+      await listVideoDevices();
+      let constraints;
+      if(videoDevices.length > 0){
+        let back = videoDevices.find(d => /back|environment/i.test(d.label));
+        if(preferBack && back){
+          currentDeviceId = back.deviceId;
+          constraints = { video: { deviceId: { exact: currentDeviceId } } };
+        } else constraints = { video: { facingMode: "environment" } };
+      } else constraints = { video: true };
 
-    if(stream){ stream.getTracks().forEach(t=>t.stop()); }
-    stream = await navigator.mediaDevices.getUserMedia(constraints);
-    video.srcObject = stream;
-    await video.play();
+      if(stream){ stopCamera(); }
+      stream = await navigator.mediaDevices.getUserMedia(constraints);
+      video.srcObject = stream;
 
-    captureBtn.disabled=false;
-    switchBtn.disabled=videoDevices.length<2;
-    startBtn.disabled=true;
-    resultDiv.innerText="📸 Camera đã bật. Bạn có thể chụp ảnh.";
-    speak("Camera đã bật, bạn có thể chụp ảnh.");
+      captureBtn.disabled = false;
+      stopBtn.disabled = false;
+      switchBtn.disabled = videoDevices.length < 2;
+      startBtn.disabled = true;
+      resultDiv.innerText = "📸 Camera đã bật, bạn có thể chụp ảnh.";
+      speak("Camera đã bật, bạn có thể chụp ảnh.");
+    } catch (err) {
+      console.error(err);
+      alert("⚠️ Không thể bật camera. Hãy mở file này bằng Chrome và cho phép truy cập camera.");
+      speak("Không thể bật camera. Hãy mở bằng trình duyệt Chrome và cấp quyền camera.");
+    }
   }
 
+  // Tắt camera
+  function stopCamera(){
+    if(stream){
+      stream.getTracks().forEach(t => t.stop());
+      stream = null;
+    }
+    video.srcObject = null;
+    startBtn.disabled = false;
+    stopBtn.disabled = true;
+    captureBtn.disabled = true;
+    analyzeBtn.disabled = true;
+    resultDiv.innerText = "🛑 Camera đã tắt.";
+  }
+
+  // Chuyển camera
   async function switchCamera(){
-    if(videoDevices.length<2) return;
-    let idx = videoDevices.findIndex(d=>d.deviceId===currentDeviceId);
-    currentDeviceId = videoDevices[(idx+1)%videoDevices.length].deviceId;
+    if(videoDevices.length < 2) return;
+    let idx = videoDevices.findIndex(d => d.deviceId === currentDeviceId);
+    currentDeviceId = videoDevices[(idx + 1) % videoDevices.length].deviceId;
     await startCamera(false);
   }
 
+  // Chụp ảnh
   function captureImage(){
-    const canvas=document.createElement('canvas');
-    canvas.width=video.videoWidth; canvas.height=video.videoHeight;
-    canvas.getContext('2d').drawImage(video,0,0,canvas.width,canvas.height);
-    preview.src=canvas.toDataURL('image/jpeg');
-    preview.style.display='block';
-    analyzeBtn.disabled=false;
-    resultDiv.innerText="📷 Ảnh đã chụp, nhấn Phân tích.";
+    const canvas = document.createElement('canvas');
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    canvas.getContext('2d').drawImage(video, 0, 0);
+    preview.src = canvas.toDataURL('image/jpeg');
+    preview.style.display = 'block';
+    analyzeBtn.disabled = false;
+    resultDiv.innerText = "📷 Ảnh đã chụp, nhấn Phân tích.";
     speak("Ảnh đã chụp, nhấn phân tích để xem kết quả.");
   }
 
-  // ====== PHÂN TÍCH ẢNH ======
+  // Phân tích ảnh
   async function analyzeImage(){
     if(!model){
-      resultDiv.innerText="⚠️ Mô hình chưa sẵn sàng.";
+      resultDiv.innerText = "⚠️ Mô hình chưa sẵn sàng.";
       speak("Mô hình chưa sẵn sàng, vui lòng đợi.");
       return;
     }
     if(!preview.src){
-      resultDiv.innerText="⚠️ Bạn cần chụp ảnh trước khi phân tích.";
+      resultDiv.innerText = "⚠️ Bạn cần chụp ảnh trước khi phân tích.";
       speak("Bạn cần chụp ảnh trước khi phân tích.");
       return;
     }
+    resultDiv.innerText = "🔍 Đang phân tích...";
+    speak("Đang phân tích ảnh, vui lòng đợi.");
 
-    resultDiv.innerText="🔍 Đang phân tích...";
-    speak("Đang phân tích ảnh.");
-    await new Promise(r=>preview.complete?r():preview.onload=r);
+    await new Promise(r => preview.complete ? r() : preview.onload = r);
 
     const prediction = await model.predict(preview);
-    prediction.sort((a,b)=>b.probability-a.probability);
+    prediction.sort((a,b) => b.probability - a.probability);
     const top = prediction[0];
     const className = top.className.toUpperCase();
-    const confidence = (top.probability*100).toFixed(1);
-    resultDiv.innerText=`Kết luận: ${className}. Độ tin cậy: ${confidence}%`;
-    speak(`Kết luận: ${className}. Độ tin cậy ${confidence} phần trăm.`);
+    const confidence = (top.probability * 100).toFixed(1);
+    resultDiv.innerText = `Kết luận: ${className} (${confidence}%)`;
+    speak(`Kết luận ${className}, độ tin cậy ${confidence} phần trăm.`);
     showDetails(className);
   }
 
   function showDetails(className){
     const data = diseaseDetails[className];
-    if(!data){ detailsDiv.style.display='none'; return; }
-    symptomsEl.innerText=data.symptoms;
-    causesEl.innerText=data.causes;
-    preventionEl.innerText=data.prevention;
-    careEl.innerText=data.care;
-    treatmentEl.innerText=data.treatment;
-    detailsDiv.style.display='block';
-    detailsBtn.disabled=false;
-    speak(`Chi tiết bệnh ${className}. ${data.symptoms}`);
+    if(!data){ detailsDiv.style.display = 'none'; return; }
+    symptomsEl.innerText = data.symptoms;
+    causesEl.innerText = data.causes;
+    preventionEl.innerText = data.prevention;
+    careEl.innerText = data.care;
+    treatmentEl.innerText = data.treatment;
+    detailsDiv.style.display = 'block';
+    detailsBtn.disabled = false;
   }
 
-  // ====== SỰ KIỆN ======
-  startBtn.onclick = ()=>startCamera();
-  switchBtn.onclick = ()=>switchCamera();
-  captureBtn.onclick = ()=>captureImage();
-  analyzeBtn.onclick = ()=>analyzeImage();
-  detailsBtn.onclick = ()=>{ detailsDiv.style.display = detailsDiv.style.display==='block'?'none':'block'; };
+  // Sự kiện
+  startBtn.onclick = () => startCamera();
+  switchBtn.onclick = () => switchCamera();
+  stopBtn.onclick = () => stopCamera();
+  captureBtn.onclick = () => captureImage();
+  analyzeBtn.onclick = () => analyzeImage();
+  detailsBtn.onclick = () => {
+    detailsDiv.style.display = detailsDiv.style.display === 'block' ? 'none' : 'block';
+  };
   </script>
 </body>
 </html>
