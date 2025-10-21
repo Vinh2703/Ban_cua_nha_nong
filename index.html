@@ -62,11 +62,9 @@
 <body>
   <h1>🌿 AI Nhận diện bệnh trên lá</h1>
 
-  <!-- Hiển thị camera và ảnh chụp -->
-  <video id="webcam" autoplay playsinline></video>
+  <video id="webcam" autoplay playsinline muted></video>
   <img id="preview" style="display:none;">
 
-  <!-- Các nút điều khiển -->
   <div>
     <button id="startBtn">📷 Bật camera</button>
     <button id="switchBtn" disabled>🔄 Đổi camera</button>
@@ -76,10 +74,8 @@
     <button id="detailsBtn" disabled>📖 Xem chi tiết</button>
   </div>
 
-  <!-- Kết quả -->
   <div id="result">Chưa có dữ liệu.</div>
 
-  <!-- Thông tin chi tiết bệnh -->
   <div id="details">
     <h3>Chi tiết bệnh:</h3>
     <p><b>Triệu chứng:</b> <span id="symptoms"></span></p>
@@ -133,7 +129,6 @@
   const careEl = document.getElementById('care');
   const treatmentEl = document.getElementById('treatment');
 
-  // Giọng nói
   function speak(text){
     const utter = new SpeechSynthesisUtterance(text);
     utter.lang = 'vi-VN';
@@ -141,7 +136,6 @@
     speechSynthesis.speak(utter);
   }
 
-  // Tải mô hình
   async function loadModel(){
     try {
       resultDiv.innerText = "⏳ Đang tải mô hình...";
@@ -156,12 +150,10 @@
   }
   loadModel();
 
-  // Liệt kê camera
   async function listVideoDevices(){
     videoDevices = (await navigator.mediaDevices.enumerateDevices()).filter(d => d.kind === 'videoinput');
   }
 
-  // Bật camera
   async function startCamera(preferBack = true){
     try {
       await listVideoDevices();
@@ -191,7 +183,6 @@
     }
   }
 
-  // Tắt camera
   function stopCamera(){
     if(stream){
       stream.getTracks().forEach(t => t.stop());
@@ -205,7 +196,6 @@
     resultDiv.innerText = "🛑 Camera đã tắt.";
   }
 
-  // Chuyển camera
   async function switchCamera(){
     if(videoDevices.length < 2) return;
     let idx = videoDevices.findIndex(d => d.deviceId === currentDeviceId);
@@ -213,7 +203,6 @@
     await startCamera(false);
   }
 
-  // Chụp ảnh
   function captureImage(){
     const canvas = document.createElement('canvas');
     canvas.width = video.videoWidth;
@@ -226,7 +215,6 @@
     speak("Ảnh đã chụp, nhấn phân tích để xem kết quả.");
   }
 
-  // Phân tích ảnh
   async function analyzeImage(){
     if(!model){
       resultDiv.innerText = "⚠️ Mô hình chưa sẵn sàng.";
@@ -265,7 +253,6 @@
     detailsBtn.disabled = false;
   }
 
-  // Sự kiện
   startBtn.onclick = () => startCamera();
   switchBtn.onclick = () => switchCamera();
   stopBtn.onclick = () => stopCamera();
