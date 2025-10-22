@@ -1,8 +1,8 @@
 <!DOCTYPE html>
 <html lang="vi">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Ứng dụng AI Bạn của nhà nông</title>
 
   <!-- TensorFlow & Teachable Machine -->
@@ -11,18 +11,16 @@
 
   <style>
     body {
-      font-family: Arial, sans-serif;
+      font-family: Arial, Helvetica, sans-serif;
       background: linear-gradient(135deg, #f1f8e9, #c8e6c9);
       text-align: center;
       padding: 15px;
     }
-
     h1 {
       color: #1b5e20;
       font-size: 24px;
       margin-bottom: 10px;
     }
-
     video, img {
       width: 95%;
       max-width: 400px;
@@ -30,7 +28,6 @@
       border: 3px solid #4caf50;
       margin-top: 10px;
     }
-
     button {
       display: block;
       margin: 8px auto;
@@ -45,23 +42,14 @@
       max-width: 400px;
       transition: 0.2s;
     }
-
-    button:hover {
-      background: #2e7d32;
-    }
-
-    button:disabled {
-      background: #ccc;
-      cursor: not-allowed;
-    }
-
+    button:hover { background: #2e7d32; }
+    button:disabled { background: #ccc; cursor: not-allowed; }
     #result {
       margin-top: 15px;
       font-size: 20px;
       font-weight: bold;
       color: #1b5e20;
     }
-
     #details {
       background: #ffffff;
       margin-top: 15px;
@@ -74,13 +62,11 @@
       margin-right: auto;
       box-shadow: 0 2px 6px rgba(0,0,0,0.2);
     }
-
     #details h3 {
       color: #2e7d32;
       margin-bottom: 8px;
       text-align: center;
     }
-
     #details p {
       margin: 6px 0;
       font-size: 16px;
@@ -88,7 +74,6 @@
     }
   </style>
 </head>
-
 <body>
   <h1>🌾 Ứng dụng AI Bạn của nhà nông</h1>
 
@@ -100,6 +85,7 @@
     <button id="captureBtn" disabled>🖼️ Chụp ảnh</button>
     <button id="analyzeBtn" disabled>🤖 Phân tích bệnh</button>
     <button id="detailsBtn" disabled>📖 Xem chi tiết</button>
+    <button id="speakBtn" disabled>🔊 Nghe lại thông tin bệnh</button>
   </div>
 
   <div id="result">Chưa có dữ liệu.</div>
@@ -115,10 +101,9 @@
 
   <script>
     const MODEL_URL = "https://teachablemachine.withgoogle.com/models/YEWRSh9R8/";
-    let model = null, stream = null;
-    let lastClassName = null;
+    let model = null, stream = null, lastClassName = null;
 
-    // 🟢 Bảng tên lớp bệnh (trùng với mô hình)
+    // 🟢 Map tên lớp mô hình sang tiếng Việt
     const nameMap = {
       "BENH_KHO_VAN": "Bệnh khô vằn",
       "BENH_DOM_LA_LON": "Bệnh đốm lá lớn",
@@ -126,7 +111,7 @@
       "CAY_NGO_KHOE": "Cây ngô khỏe"
     };
 
-    // 🟢 Thông tin chi tiết bệnh
+    // 🟢 Thông tin bệnh chi tiết
     const diseaseDetails = {
       "Bệnh khô vằn": {
         symptoms: "Vết loang xám tro trên bẹ lá và thân, hình dạng bất định. Bệnh lan từ gốc lên bắp làm lá vàng khô và cây chết dần.",
@@ -158,7 +143,7 @@
       }
     };
 
-    // 🔊 Giọng đọc tiếng Việt tự nhiên
+    // 🎙️ Giọng đọc tiếng Việt tự nhiên
     function speak(text) {
       const utter = new SpeechSynthesisUtterance(text);
       utter.lang = 'vi-VN';
@@ -174,7 +159,7 @@
       await tf.ready();
       model = await tmImage.load(MODEL_URL + "model.json", MODEL_URL + "metadata.json");
       resultDiv.innerText = "✅ Mô hình đã sẵn sàng. Nhấn Bật camera để bắt đầu.";
-      speak("Mô hình đã sẵn sàng, hãy bật camera để bắt đầu.");
+      speak("Mô hình đã sẵn sàng, nhấn bật camera để bắt đầu.");
     }
 
     // 🎥 Mở camera sau
@@ -206,7 +191,7 @@
       preview.style.display = 'block';
       analyzeBtn.disabled = false;
       resultDiv.innerText = "🖼️ Ảnh đã chụp. Nhấn Phân tích bệnh.";
-      speak("Ảnh đã được chụp. Hãy nhấn Phân tích bệnh để xem kết quả.");
+      speak("Ảnh đã được chụp, nhấn Phân tích bệnh để xem kết quả.");
     }
 
     // 🤖 Phân tích ảnh
@@ -236,26 +221,29 @@
       care.textContent = d.care;
       treatment.textContent = d.treatment;
       detailsBtn.disabled = false;
+      speakBtn.disabled = false;
       lastClassName = name;
     }
 
     detailsBtn.onclick = () => {
-      if (details.style.display === "block") {
-        details.style.display = "none";
-      } else if (lastClassName) {
-        details.style.display = "block";
-        const d = diseaseDetails[lastClassName];
-        speak(`Biểu hiện: ${d.symptoms}. Nguyên nhân: ${d.causes}. Phòng ngừa: ${d.prevention}. Chăm sóc: ${d.care}. Điều trị: ${d.treatment}.`);
-      }
+      if (details.style.display === "block") details.style.display = "none";
+      else if (lastClassName) details.style.display = "block";
     };
 
-    // Gắn sự kiện
+    speakBtn.onclick = () => {
+      if (!lastClassName) return;
+      const d = diseaseDetails[lastClassName];
+      speak(`Biểu hiện: ${d.symptoms}. Nguyên nhân: ${d.causes}. Phòng ngừa: ${d.prevention}. Chăm sóc: ${d.care}. Điều trị: ${d.treatment}.`);
+    };
+
+    // 🌱 Gắn các phần tử
     const webcam = document.getElementById('webcam');
     const preview = document.getElementById('preview');
     const startBtn = document.getElementById('startBtn');
     const captureBtn = document.getElementById('captureBtn');
     const analyzeBtn = document.getElementById('analyzeBtn');
     const detailsBtn = document.getElementById('detailsBtn');
+    const speakBtn = document.getElementById('speakBtn');
     const resultDiv = document.getElementById('result');
     const details = document.getElementById('details');
     const symptoms = document.getElementById('symptoms');
