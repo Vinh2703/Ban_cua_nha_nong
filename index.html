@@ -10,82 +10,40 @@
   <script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@0.8/dist/teachablemachine-image.min.js"></script>
 
   <style>
-    body {
-      font-family: Arial, Helvetica, sans-serif;
-      background: linear-gradient(135deg, #f1f8e9, #c8e6c9);
-      text-align: center;
-      padding: 15px;
-    }
-    h1 {
-      color: #1b5e20;
-      font-size: 24px;
-      margin-bottom: 10px;
-    }
-    video, img {
-      width: 95%;
-      max-width: 400px;
-      border-radius: 12px;
-      border: 3px solid #4caf50;
-      margin-top: 10px;
-    }
-    button {
-      display: block;
-      margin: 8px auto;
-      padding: 14px 20px;
-      font-size: 18px;
-      border-radius: 10px;
-      border: none;
-      background: #43a047;
-      color: white;
-      cursor: pointer;
-      width: 90%;
-      max-width: 400px;
-      transition: 0.2s;
-    }
-    button:hover { background: #2e7d32; }
-    button:disabled { background: #ccc; cursor: not-allowed; }
-    #result {
-      margin-top: 15px;
-      font-size: 20px;
-      font-weight: bold;
-      color: #1b5e20;
-    }
-    #details {
-      background: #ffffff;
-      margin-top: 15px;
-      padding: 12px;
-      border-radius: 10px;
-      display: none;
-      text-align: left;
-      max-width: 400px;
-      margin-left: auto;
-      margin-right: auto;
-      box-shadow: 0 2px 6px rgba(0,0,0,0.2);
-    }
-    #details h3 {
-      color: #2e7d32;
-      margin-bottom: 8px;
-      text-align: center;
-    }
-    #details p {
-      margin: 6px 0;
-      font-size: 16px;
-      color: #2e2e2e;
-    }
+    body{font-family:Arial,Helvetica,sans-serif;background:linear-gradient(135deg,#f1f8e9,#c8e6c9);padding:14px;text-align:center}
+    h1{color:#1b5e20;margin:6px 0 10px 0;font-size:22px}
+    video,img{width:94%;max-width:420px;border-radius:12px;border:3px solid #4caf50;margin:8px auto;display:block}
+    .btn{display:block;margin:8px auto;padding:12px 18px;font-size:18px;border-radius:10px;border:none;background:#43a047;color:#fff;cursor:pointer;width:90%;max-width:420px}
+    .btn.secondary{background:#fff;color:#2e7d32;border:2px solid #4caf50}
+    .btn:disabled{background:#ccc;color:#666;cursor:not-allowed}
+    #result{margin-top:12px;font-size:18px;font-weight:700;color:#1b5e20}
+    #details{display:none;background:#fff;margin:14px auto;padding:12px;border-radius:10px;max-width:420px;text-align:left;box-shadow:0 2px 8px rgba(0,0,0,0.12)}
+    #details h3{color:#2e7d32;margin-bottom:8px;text-align:center}
+    #details p{margin:6px 0;font-size:16px;color:#2e2e2e}
+    .row { display:flex; gap:8px; justify-content:center; flex-wrap:wrap; margin-top:6px; }
+    .small { font-size:13px; color:#4b6b4b; margin-top:6px; }
   </style>
 </head>
 <body>
   <h1>🌾 Ứng dụng AI Bạn của nhà nông</h1>
 
-  <video id="webcam" autoplay playsinline></video>
+  <!-- playsinline và muted giúp mobile cho phép play nhanh hơn -->
+  <video id="webcam" autoplay playsinline muted></video>
   <img id="preview" style="display:none;">
 
-  <div>
-    <button id="startBtn">📷 Bật camera</button>
-    <button id="captureBtn" disabled>🖼️ Chụp ảnh</button>
-    <button id="analyzeBtn" disabled>🤖 Phân tích bệnh</button>
-    <button id="detailsBtn" disabled>📖 Xem chi tiết</button>
-    <button id="speakBtn" disabled>🔊 Nghe lại thông tin bệnh</button>
+  <div class="row">
+    <button id="startBtn" class="btn">📷 Bật camera</button>
+    <button id="switchBtn" class="btn secondary" disabled>🔄 Đổi camera</button>
+  </div>
+
+  <div class="row">
+    <button id="captureBtn" class="btn" disabled>🖼️ Chụp ảnh</button>
+    <button id="analyzeBtn" class="btn" disabled>🤖 Phân tích bệnh</button>
+  </div>
+
+  <div class="row">
+    <button id="detailsBtn" class="btn" disabled>📖 Xem chi tiết</button>
+    <button id="speakBtn" class="btn" disabled>🔊 Nghe lại thông tin bệnh</button>
   </div>
 
   <div id="result">Chưa có dữ liệu.</div>
@@ -99,164 +57,343 @@
     <p><b>Điều trị:</b> <span id="treatment"></span></p>
   </div>
 
-  <script>
-    const MODEL_URL = "https://teachablemachine.withgoogle.com/models/YEWRSh9R8/";
-    let model = null, stream = null, lastClassName = null;
+<script>
+/* ----------------------------
+   Cấu hình & dữ liệu bệnh
+   ---------------------------- */
+const MODEL_URL = "https://teachablemachine.withgoogle.com/models/YEWRSh9R8/";
+let model = null;
+let stream = null;
+let devices = [];
+let currentDeviceId = null;
+let lastClassName = null; // tên tiếng Việt đã map (ví dụ "Bệnh phấn đen")
 
-    // 🟢 Map tên lớp mô hình sang tiếng Việt
-    const nameMap = {
-      "BENH_KHO_VAN": "Bệnh khô vằn",
-      "BENH_DOM_LA_LON": "Bệnh đốm lá lớn",
-      "BENH_PHAN_DEN": "Bệnh phấn đen",
-      "CAY_NGO_KHOE": "Cây ngô khỏe"
-    };
+// map tên lớp (nhãn mô hình) -> tiếng Việt hiển thị
+const nameMap = {
+  "BENH_KHO_VAN": "Bệnh khô vằn",
+  "BENH_DOM_LA_LON": "Bệnh đốm lá lớn",
+  "BENH_PHAN_DEN": "Bệnh phấn đen",
+  "CAY_NGO_KHOE": "Cây ngô khỏe"
+};
 
-    // 🟢 Thông tin bệnh chi tiết
-    const diseaseDetails = {
-      "Bệnh khô vằn": {
-        symptoms: "Vết loang xám tro trên bẹ lá và thân, hình dạng bất định. Bệnh lan từ gốc lên bắp làm lá vàng khô và cây chết dần.",
-        causes: "Do nấm Rhizoctonia solani Kuhn, phát triển mạnh trong điều kiện ẩm cao, nhiệt độ 25–30°C.",
-        prevention: "Chọn giống ít nhiễm, gieo đúng thời vụ, vệ sinh đồng ruộng, tiêu hủy tàn dư cây bệnh.",
-        care: "Giữ ruộng thông thoáng, không bón thừa đạm, dùng chế phẩm Trichoderma.",
-        treatment: "Phun thuốc Anvil, Azotide, Tilt Super hoặc Evitin theo hướng dẫn."
-      },
-      "Bệnh đốm lá lớn": {
-        symptoms: "Trên lá xuất hiện đốm bầu dục hoặc thoi, nâu nhạt đến nâu đậm, giữa đốm xám tro. Khi ẩm ướt, bệnh lan nhanh làm lá khô cháy.",
-        causes: "Do nấm Exserohilum turcicum, phát triển mạnh khi thời tiết nóng ẩm.",
-        prevention: "Luân canh cây trồng, dọn sạch tàn dư, bón phân cân đối.",
-        care: "Giảm đạm, tăng kali, phun chế phẩm sinh học phòng bệnh.",
-        treatment: "Phun Daconil, Score hoặc Tilt khi bệnh lan rộng."
-      },
-      "Bệnh phấn đen": {
-        symptoms: "Xuất hiện u sưng trắng trên bẹ lá, thân, bắp. Bên trong chứa bột đen là bào tử nấm.",
-        causes: "Do nấm Ustilago maydis hoặc Ustilago zeae gây ra, phát tán qua gió, nước, vết thương.",
-        prevention: "Luân canh cây trồng, xử lý hạt giống, dọn sạch tàn dư cây bệnh.",
-        care: "Cắt bỏ phần bị bệnh, tăng cường bón kali và hữu cơ.",
-        treatment: "Phun Antafungal hoặc thuốc chứa tebuconazole, propiconazole, hexaconazole."
-      },
-      "Cây ngô khỏe": {
-        symptoms: "Lá xanh bóng, không có đốm bệnh hay phấn phủ.",
-        causes: "Cây phát triển trong điều kiện sinh trưởng tốt.",
-        prevention: "Duy trì tưới tiêu hợp lý, bón phân cân đối.",
-        care: "Giữ ruộng thông thoáng, tránh ngập úng.",
-        treatment: "Không cần xử lý thêm."
+const diseaseDetails = {
+  "Bệnh khô vằn": {
+    symptoms: "Vết loang xám tro trên bẹ lá và thân, hình dạng bất định. Bệnh lan từ gốc lên bắp làm lá vàng khô và cây chết dần.",
+    causes: "Do nấm Rhizoctonia solani Kuhn, phát triển mạnh trong điều kiện ẩm cao, nhiệt độ 25–30°C.",
+    prevention: "Chọn giống ít nhiễm, gieo đúng thời vụ, vệ sinh đồng ruộng, tiêu hủy tàn dư cây bệnh.",
+    care: "Giữ ruộng thông thoáng, không bón thừa đạm, dùng chế phẩm Trichoderma.",
+    treatment: "Phun thuốc Anvil, Azotide, Tilt Super hoặc Evitin theo hướng dẫn."
+  },
+  "Bệnh đốm lá lớn": {
+    symptoms: "Trên lá xuất hiện đốm bầu dục hoặc thoi, nâu nhạt đến nâu đậm, giữa đốm xám tro. Khi ẩm ướt, bệnh lan nhanh làm lá khô cháy.",
+    causes: "Do nấm Exserohilum turcicum, phát triển mạnh khi thời tiết nóng ẩm.",
+    prevention: "Luân canh cây trồng, dọn sạch tàn dư, bón phân cân đối.",
+    care: "Giảm đạm, tăng kali, phun chế phẩm sinh học phòng bệnh.",
+    treatment: "Phun Daconil, Score hoặc Tilt khi bệnh lan rộng."
+  },
+  "Bệnh phấn đen": {
+    symptoms: "Xuất hiện u sưng trắng trên bẹ lá, thân, bắp. Bên trong chứa bột đen là bào tử nấm.",
+    causes: "Do nấm Ustilago maydis hoặc Ustilago zeae gây ra, phát tán qua gió, nước, vết thương.",
+    prevention: "Luân canh cây trồng, xử lý hạt giống, dọn sạch tàn dư cây bệnh.",
+    care: "Cắt bỏ phần bị bệnh, tăng cường bón kali và hữu cơ.",
+    treatment: "Phun Antafungal hoặc thuốc chứa tebuconazole, propiconazole, hexaconazole."
+  },
+  "Cây ngô khỏe": {
+    symptoms: "Lá xanh bóng, không có đốm bệnh hay phấn phủ.",
+    causes: "Cây phát triển trong điều kiện sinh trưởng tốt.",
+    prevention: "Duy trì tưới tiêu hợp lý, bón phân cân đối.",
+    care: "Giữ ruộng thông thoáng, tránh ngập úng.",
+    treatment: "Không cần xử lý thêm."
+  }
+};
+
+/* ----------------------------
+   Element refs
+   ---------------------------- */
+const videoEl = document.getElementById('webcam');
+const previewEl = document.getElementById('preview');
+const startBtn = document.getElementById('startBtn');
+const switchBtn = document.getElementById('switchBtn');
+const captureBtn = document.getElementById('captureBtn');
+const analyzeBtn = document.getElementById('analyzeBtn');
+const detailsBtn = document.getElementById('detailsBtn');
+const speakBtn = document.getElementById('speakBtn');
+const resultDiv = document.getElementById('result');
+const detailsBox = document.getElementById('details');
+const symptomsEl = document.getElementById('symptoms');
+const causesEl = document.getElementById('causes');
+const preventionEl = document.getElementById('prevention');
+const careEl = document.getElementById('care');
+const treatmentEl = document.getElementById('treatment');
+
+/* ----------------------------
+   TTS helper
+   ---------------------------- */
+function speak(text){
+  try{
+    if(!('speechSynthesis' in window)) return;
+    window.speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(text);
+    u.lang = 'vi-VN';
+    u.rate = 0.95;
+    u.pitch = 1.0;
+    window.speechSynthesis.speak(u);
+  }catch(e){
+    console.warn('TTS error', e);
+  }
+}
+
+/* ----------------------------
+   Load model
+   ---------------------------- */
+async function loadModel(){
+  resultDiv.innerText = '⏳ Đang tải mô hình...';
+  try{
+    await tf.ready();
+    model = await tmImage.load(MODEL_URL + 'model.json', MODEL_URL + 'metadata.json');
+    resultDiv.innerText = '✅ Mô hình sẵn sàng. Nhấn "Bật camera" để bắt đầu.';
+    speak('Mô hình đã sẵn sàng. Nhấn bật camera để bắt đầu.');
+    // enumerate devices early
+    await enumerateVideoDevices();
+  }catch(e){
+    console.error('Lỗi load model', e);
+    resultDiv.innerText = '❌ Lỗi tải mô hình';
+  }
+}
+loadModel();
+
+/* ----------------------------
+   Devices & camera helpers
+   ---------------------------- */
+async function enumerateVideoDevices(){
+  try{
+    const all = await navigator.mediaDevices.enumerateDevices();
+    devices = all.filter(d => d.kind === 'videoinput');
+    // enable switch if >1
+    switchBtn.disabled = devices.length < 2;
+  }catch(e){
+    console.warn('enumerateDevices failed', e);
+    devices = [];
+    switchBtn.disabled = true;
+  }
+}
+
+// Start camera: prefer back camera by label or facingMode
+async function startCamera(preferBack = true){
+  try{
+    await enumerateVideoDevices();
+    let constraints;
+    if(devices.length > 0){
+      // try to find back camera by label
+      const back = devices.find(d => /back|rear|environment/i.test(d.label));
+      if(preferBack && back){
+        currentDeviceId = back.deviceId;
+        constraints = { video: { deviceId: { exact: currentDeviceId } } };
+      } else {
+        // use facingMode to be safer on some devices
+        constraints = { video: { facingMode: { ideal: 'environment' } } };
       }
-    };
-
-    // 🎙️ Giọng đọc tiếng Việt tự nhiên
-    function speak(text) {
-      const utter = new SpeechSynthesisUtterance(text);
-      utter.lang = 'vi-VN';
-      utter.rate = 0.95;
-      utter.pitch = 1.0;
-      speechSynthesis.cancel();
-      speechSynthesis.speak(utter);
+    } else {
+      constraints = { video: true };
     }
 
-    // 🧠 Tải mô hình
-    async function loadModel() {
-      resultDiv.innerText = "⏳ Đang tải mô hình...";
-      await tf.ready();
-      model = await tmImage.load(MODEL_URL + "model.json", MODEL_URL + "metadata.json");
-      resultDiv.innerText = "✅ Mô hình đã sẵn sàng. Nhấn Bật camera để bắt đầu.";
-      speak("Mô hình đã sẵn sàng, nhấn bật camera để bắt đầu.");
+    // stop existing if any
+    if(stream){
+      stream.getTracks().forEach(t => t.stop());
+      stream = null;
     }
 
-    // 🎥 Mở camera sau
-    async function startCamera() {
-      try {
-        const devices = await navigator.mediaDevices.enumerateDevices();
-        const videoDevices = devices.filter(d => d.kind === 'videoinput');
-        const backCam = videoDevices.find(d => /back|environment/i.test(d.label)) || videoDevices[0];
-        stream = await navigator.mediaDevices.getUserMedia({
-          video: { deviceId: backCam ? { exact: backCam.deviceId } : undefined }
-        });
-        webcam.srcObject = stream;
-        captureBtn.disabled = false;
-        resultDiv.innerText = "📸 Camera đã bật. Hãy chụp ảnh lá ngô.";
-        speak("Camera đã bật, hãy chụp ảnh lá ngô.");
-      } catch (e) {
-        alert("⚠️ Không thể bật camera. Hãy mở bằng Chrome và cấp quyền truy cập camera.");
-      }
+    stream = await navigator.mediaDevices.getUserMedia(constraints);
+    videoEl.srcObject = stream;
+
+    // wait until metadata loaded and video has dimensions
+    await new Promise((resolve, reject) => {
+      const onLoaded = () => {
+        // sometimes videoWidth == 0 briefly -> wait for paint
+        const check = () => {
+          if (videoEl.videoWidth && videoEl.videoHeight) resolve();
+          else requestAnimationFrame(check);
+        };
+        check();
+      };
+      videoEl.onloadedmetadata = onLoaded;
+      // fallback timeout
+      setTimeout(() => resolve(), 2000);
+    });
+
+    captureBtn.disabled = false;
+    analyzeBtn.disabled = true;
+    startBtn.disabled = true;
+    resultDiv.innerText = '📸 Camera đã bật. Hướng lá ngô vào khung hình và chụp ảnh.';
+    speak('Camera đã bật. Hướng lá ngô vào khung hình và chụp ảnh.');
+    // refresh device list (labels now available)
+    await enumerateVideoDevices();
+    switchBtn.disabled = devices.length < 2;
+  }catch(err){
+    console.error('startCamera error', err);
+    alert('⚠️ Không thể bật camera. Hãy mở bằng Chrome và cấp quyền camera.');
+    resultDiv.innerText = '❌ Không thể bật camera';
+  }
+}
+
+async function switchCamera(){
+  if(devices.length < 2) return;
+  // find index of currentDeviceId, otherwise use first
+  const idx = devices.findIndex(d => d.deviceId === currentDeviceId);
+  const next = devices[(idx + 1) % devices.length] || devices[0];
+  currentDeviceId = next.deviceId;
+  await startCamera(false);
+}
+
+/* ----------------------------
+   Capture: wait until video ready
+   ---------------------------- */
+async function captureImage(){
+  // ensure video stream ready
+  if(!stream){
+    alert('Chưa bật camera. Nhấn Bật camera trước khi chụp.');
+    return;
+  }
+  // wait until video has size
+  if(!videoEl.videoWidth || !videoEl.videoHeight){
+    await new Promise(res => {
+      const check = () => {
+        if (videoEl.videoWidth && videoEl.videoHeight) res();
+        else requestAnimationFrame(check);
+      };
+      check();
+    });
+  }
+
+  const canvas = document.createElement('canvas');
+  canvas.width = videoEl.videoWidth;
+  canvas.height = videoEl.videoHeight;
+  const ctx = canvas.getContext('2d');
+  ctx.drawImage(videoEl, 0, 0, canvas.width, canvas.height);
+  previewEl.src = canvas.toDataURL('image/jpeg', 0.92);
+  previewEl.style.display = 'block';
+  analyzeBtn.disabled = false;
+  detailsBtn.disabled = true;
+  speak('Ảnh đã chụp. Nhấn phân tích để nhận kết quả.');
+  resultDiv.innerText = '🖼️ Ảnh đã chụp. Nhấn Phân tích.';
+}
+
+/* ----------------------------
+   Analyze image
+   ---------------------------- */
+async function analyzeImage(){
+  if(!model){
+    alert('Mô hình chưa sẵn sàng. Vui lòng đợi.');
+    return;
+  }
+  if(!previewEl.src){
+    alert('Bạn cần chụp ảnh trước khi phân tích.');
+    return;
+  }
+
+  resultDiv.innerText = '🔍 Đang phân tích...';
+  try{
+    // Ensure image is loaded
+    await new Promise(res => previewEl.complete ? res() : previewEl.onload = res);
+    const predictions = await model.predict(previewEl);
+    if(!Array.isArray(predictions) || predictions.length === 0){
+      throw new Error('No predictions');
     }
+    predictions.sort((a,b) => b.probability - a.probability);
+    const top = predictions[0];
+    const rawLabel = String(top.className || '').toUpperCase();
+    const name = nameMap[rawLabel] || rawLabel || 'Không xác định';
+    const conf = (top.probability * 100).toFixed(1);
 
-    // 📷 Chụp ảnh
-    function captureImage() {
-      if (!stream) return;
-      const canvas = document.createElement('canvas');
-      canvas.width = webcam.videoWidth;
-      canvas.height = webcam.videoHeight;
-      canvas.getContext('2d').drawImage(webcam, 0, 0);
-      preview.src = canvas.toDataURL('image/jpeg');
-      preview.style.display = 'block';
-      analyzeBtn.disabled = false;
-      resultDiv.innerText = "🖼️ Ảnh đã chụp. Nhấn Phân tích bệnh.";
-      speak("Ảnh đã được chụp, nhấn Phân tích bệnh để xem kết quả.");
-    }
+    resultDiv.innerText = `Kết luận: ${name} (${conf}%)`;
+    speak(`Kết luận: ${name}. Độ tin cậy ${conf} phần trăm.`);
+    // assign lastClassName (tiếng Việt) and enable buttons
+    lastClassName = name;
+    showDetails(name); // prepare details content
+    detailsBtn.disabled = false;
+    speakBtn.disabled = false;
+  }catch(err){
+    console.error('analyzeImage error', err);
+    resultDiv.innerText = '❌ Lỗi khi phân tích';
+    speak('Lỗi khi phân tích ảnh. Vui lòng thử lại.');
+  }
+}
 
-    // 🤖 Phân tích ảnh
-    async function analyzeImage() {
-      if (!model || !preview.src) {
-        speak("Vui lòng chụp ảnh trước khi phân tích.");
-        return;
-      }
-      resultDiv.innerText = "🔍 Đang phân tích...";
-      const prediction = await model.predict(preview);
-      prediction.sort((a, b) => b.probability - a.probability);
-      const top = prediction[0];
-      const name = nameMap[top.className.toUpperCase()] || top.className;
-      const conf = (top.probability * 100).toFixed(1);
-      resultDiv.innerText = `Kết luận: ${name} (${conf}%)`;
-      speak(`Kết luận: ${name}. Độ tin cậy ${conf} phần trăm.`);
-      showDetails(name);
-    }
+/* ----------------------------
+   Show details (fill fields)
+   ---------------------------- */
+function showDetails(name){
+  const info = diseaseDetails[name];
+  if(!info){
+    // clear
+    symptomsEl.textContent = '';
+    causesEl.textContent = '';
+    preventionEl.textContent = '';
+    careEl.textContent = '';
+    treatmentEl.textContent = '';
+    detailsBtn.disabled = true;
+    speakBtn.disabled = true;
+    return;
+  }
+  symptomsEl.textContent = info.symptoms;
+  causesEl.textContent = info.causes;
+  preventionEl.textContent = info.prevention;
+  careEl.textContent = info.care;
+  treatmentEl.textContent = info.treatment;
+  // keep details hidden until user clicks (but we already prepared data)
+}
 
-    // 📖 Hiển thị chi tiết
-    function showDetails(name) {
-      const d = diseaseDetails[name];
-      if (!d) return;
-      symptoms.textContent = d.symptoms;
-      causes.textContent = d.causes;
-      prevention.textContent = d.prevention;
-      care.textContent = d.care;
-      treatment.textContent = d.treatment;
-      detailsBtn.disabled = false;
-      speakBtn.disabled = false;
-      lastClassName = name;
-    }
+/* ----------------------------
+   Details button: toggle and ensure content shown
+   ---------------------------- */
+detailsBtn.addEventListener('click', () => {
+  if(!lastClassName){
+    alert('Bạn chưa phân tích ảnh. Vui lòng phân tích trước.');
+    return;
+  }
+  // ensure details content ready
+  showDetails(lastClassName);
+  if(detailsBox.style.display === 'block'){
+    detailsBox.style.display = 'none';
+  } else {
+    detailsBox.style.display = 'block';
+    const d = diseaseDetails[lastClassName];
+    if(d) speak(`Biểu hiện: ${d.symptoms}. Nguyên nhân: ${d.causes}. Phòng ngừa: ${d.prevention}. Chăm sóc: ${d.care}. Điều trị: ${d.treatment}.`);
+  }
+});
 
-    detailsBtn.onclick = () => {
-      if (details.style.display === "block") details.style.display = "none";
-      else if (lastClassName) details.style.display = "block";
-    };
+/* ----------------------------
+   Speak button: read details again
+   ---------------------------- */
+speakBtn.addEventListener('click', () => {
+  if(!lastClassName){
+    alert('Chưa có kết quả phân tích. Vui lòng phân tích trước.');
+    return;
+  }
+  const d = diseaseDetails[lastClassName];
+  if(!d){
+    alert('Không có thông tin chi tiết cho kết quả này.');
+    return;
+  }
+  speak(`Biểu hiện: ${d.symptoms}. Nguyên nhân: ${d.causes}. Phòng ngừa: ${d.prevention}. Chăm sóc: ${d.care}. Điều trị: ${d.treatment}.`);
+});
 
-    speakBtn.onclick = () => {
-      if (!lastClassName) return;
-      const d = diseaseDetails[lastClassName];
-      speak(`Biểu hiện: ${d.symptoms}. Nguyên nhân: ${d.causes}. Phòng ngừa: ${d.prevention}. Chăm sóc: ${d.care}. Điều trị: ${d.treatment}.`);
-    };
+/* ----------------------------
+   Wire up buttons & elements
+   ---------------------------- */
+startBtn.addEventListener('click', () => startCamera());
+switchBtn.addEventListener('click', () => switchCamera());
+captureBtn.addEventListener('click', () => captureImage());
+analyzeBtn.addEventListener('click', () => analyzeImage());
 
-    // 🌱 Gắn các phần tử
-    const webcam = document.getElementById('webcam');
-    const preview = document.getElementById('preview');
-    const startBtn = document.getElementById('startBtn');
-    const captureBtn = document.getElementById('captureBtn');
-    const analyzeBtn = document.getElementById('analyzeBtn');
-    const detailsBtn = document.getElementById('detailsBtn');
-    const speakBtn = document.getElementById('speakBtn');
-    const resultDiv = document.getElementById('result');
-    const details = document.getElementById('details');
-    const symptoms = document.getElementById('symptoms');
-    const causes = document.getElementById('causes');
-    const prevention = document.getElementById('prevention');
-    const care = document.getElementById('care');
-    const treatment = document.getElementById('treatment');
-
-    startBtn.onclick = () => startCamera();
-    captureBtn.onclick = () => captureImage();
-    analyzeBtn.onclick = () => analyzeImage();
-
-    loadModel();
-  </script>
+/* enable analyze button only after capture; handled in captureImage */
+/* ensure initial state */
+(function init(){
+  captureBtn.disabled = true;
+  analyzeBtn.disabled = true;
+  detailsBtn.disabled = true;
+  speakBtn.disabled = true;
+})();
+</script>
 </body>
 </html>
