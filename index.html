@@ -1,243 +1,269 @@
 <!DOCTYPE html>
 <html lang="vi">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>🌿 AI Nhận diện bệnh trên lá</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI Nhận diện bệnh trên lá ngô</title>
 
-  <!-- TensorFlow.js và Teachable Machine -->
+  <!-- TensorFlow & Teachable Machine -->
   <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@3.9.0"></script>
   <script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@0.8/dist/teachablemachine-image.min.js"></script>
 
   <style>
     body {
-      font-family: "Segoe UI", Arial, sans-serif;
-      background: #e8f5e9;
+      font-family: Arial, sans-serif;
+      background: linear-gradient(135deg, #e8f5e9, #c8e6c9);
       text-align: center;
-      margin: 0;
-      padding: 20px;
+      padding: 10px;
     }
 
-    h2 {
+    h1 {
       color: #2e7d32;
       margin-bottom: 10px;
     }
 
     video, img {
-      width: 90%;
-      max-width: 360px;
+      width: 95%;
+      max-width: 400px;
       border-radius: 12px;
-      border: 3px solid #66bb6a;
+      border: 3px solid #4caf50;
       margin-top: 10px;
     }
 
     button {
-      margin: 6px;
-      padding: 10px 16px;
+      margin: 8px;
+      padding: 14px 20px;
+      font-size: 18px;
+      border-radius: 10px;
       border: none;
-      border-radius: 6px;
       background: #43a047;
-      color: #fff;
-      font-size: 16px;
+      color: white;
       cursor: pointer;
-      transition: 0.3s;
+      width: 90%;
+      max-width: 400px;
     }
 
-    button:hover { background: #388e3c; }
-    button:disabled { background: #ccc; color: #333; cursor: not-allowed; }
+    button:disabled {
+      background: #ccc;
+      cursor: not-allowed;
+    }
 
     #result {
-      font-size: 18px;
+      margin-top: 15px;
+      font-size: 20px;
       font-weight: bold;
       color: #1b5e20;
-      margin-top: 10px;
     }
 
     #details {
+      background: #f1f8e9;
+      margin-top: 15px;
+      padding: 12px;
+      border-radius: 10px;
       display: none;
       text-align: left;
-      background: #f1f8e9;
-      margin: 15px auto;
-      padding: 10px;
-      max-width: 700px;
-      border-radius: 10px;
-      box-shadow: 0 3px 6px rgba(0,0,0,0.2);
+      max-width: 400px;
+      margin-left: auto;
+      margin-right: auto;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.2);
     }
 
-    #details table {
-      width: 100%;
-      border-collapse: collapse;
-    }
-
-    #details th {
-      width: 30%;
-      text-align: left;
+    #details h3 {
       color: #2e7d32;
-      padding: 6px;
-      vertical-align: top;
+      margin-bottom: 8px;
     }
 
-    #details td {
-      padding: 6px;
-      border-bottom: 1px solid #c5e1a5;
-    }
-
-    footer {
-      margin-top: 15px;
-      color: #388e3c;
-      font-size: 14px;
+    #details p {
+      margin: 6px 0;
+      font-size: 16px;
+      color: #2e2e2e;
     }
   </style>
 </head>
-<body>
 
-  <h2>🌿 AI Nhận diện bệnh trên lá</h2>
+<body>
+  <h1>🌽 AI Nhận diện bệnh trên lá ngô</h1>
+
   <video id="webcam" autoplay playsinline></video>
-  <img id="preview" style="display:none">
+  <img id="preview" style="display:none;">
 
   <div>
     <button id="startBtn">📷 Bật camera</button>
-    <button id="captureBtn" disabled>📸 Chụp ảnh</button>
-    <button id="analyzeBtn" disabled>🤖 Phân tích</button>
+    <button id="captureBtn" disabled>🖼️ Chụp ảnh</button>
+    <button id="analyzeBtn" disabled>🤖 Phân tích bệnh</button>
     <button id="detailsBtn" disabled>📖 Xem chi tiết</button>
   </div>
 
   <div id="result">Chưa có dữ liệu.</div>
 
   <div id="details">
-    <h3>Chi tiết bệnh:</h3>
-    <div id="detailsTableContainer"></div>
+    <h3>📘 Thông tin chi tiết</h3>
+    <p><b>Biểu hiện:</b> <span id="symptoms"></span></p>
+    <p><b>Nguyên nhân:</b> <span id="causes"></span></p>
+    <p><b>Phòng ngừa:</b> <span id="prevention"></span></p>
+    <p><b>Chăm sóc:</b> <span id="care"></span></p>
+    <p><b>Điều trị:</b> <span id="treatment"></span></p>
   </div>
-
-  <footer>© 2025 - Ứng dụng AI Nhận diện bệnh lá cây | Teachable Machine + TensorFlow.js</footer>
 
   <script>
     const MODEL_URL = "https://teachablemachine.withgoogle.com/models/YEWRSh9R8/";
-    let model, stream, lastClassName = null;
+    let model = null, stream = null, currentDeviceId = null;
+    let lastClassName = null;
 
-    const video = document.getElementById("webcam");
-    const preview = document.getElementById("preview");
-    const startBtn = document.getElementById("startBtn");
-    const captureBtn = document.getElementById("captureBtn");
-    const analyzeBtn = document.getElementById("analyzeBtn");
-    const detailsBtn = document.getElementById("detailsBtn");
-    const resultDiv = document.getElementById("result");
-    const detailsDiv = document.getElementById("details");
-    const detailsContainer = document.getElementById("detailsTableContainer");
+    // 🌾 Bảng tên lớp bệnh
+    const nameMap = {
+      "BENH_KHO_VAN": "Bệnh khô vằn",
+      "BENH_DOM_LA_LON": "Bệnh đốm lá lớn",
+      "BENH_PHAN_DEN": "Bệnh phấn đen",
+      "CAY_NGO_KHOE": "Cây ngô khỏe"
+    };
 
+    // 🌿 Thông tin chi tiết từng bệnh
     const diseaseDetails = {
-      "bệnh đốm nâu": {
-        symptoms: "Xuất hiện các đốm nâu tròn, sau lan rộng làm khô lá.",
-        causes: "Nấm Cercospora sp phát triển trong điều kiện ẩm ướt.",
-        prevention: "Không tưới quá ẩm, tỉa thưa lá, luân canh cây trồng.",
-        care: "Giữ vườn thông thoáng, loại bỏ lá bệnh.",
-        treatment: "Phun thuốc gốc đồng hoặc Mancozeb theo hướng dẫn."
+      "Bệnh khô vằn": {
+        symptoms: "Vết loang xám tro trên bẹ lá và thân, hình dạng bất định như đám mây. Vết bệnh lan dần từ gốc lên bắp, làm lá vàng khô và cây chết dần.",
+        causes: "Do nấm Rhizoctonia solani Kuhn gây ra. Phát triển mạnh khi ẩm độ cao, nhiệt độ 25–30°C.",
+        prevention: "Chọn giống ít nhiễm, gieo đúng thời vụ, trồng thưa, vệ sinh đồng ruộng.",
+        care: "Giữ ruộng thông thoáng, không bón thừa đạm, dùng chế phẩm Trichoderma.",
+        treatment: "Phun thuốc Anvil 5SC, Azotide 30SC, Tilt Super 300EC, hoặc Evitin 50SC."
       },
-      "bệnh khô lá": {
-        symptoms: "Lá khô từ mép vào, chuyển vàng, dễ rụng.",
-        causes: "Do nấm Alternaria sp gây ra.",
-        prevention: "Tránh tưới nước lên lá, kiểm soát độ ẩm.",
-        care: "Thu gom lá bệnh tiêu hủy.",
-        treatment: "Phun Daconil hoặc Score theo tỷ lệ 1.5ml/lít nước."
+      "Bệnh đốm lá lớn": {
+        symptoms: "Xuất hiện đốm bầu dục nâu nhạt, dài 10–15cm, giữa đốm xám tro. Bệnh nặng làm lá khô cháy.",
+        causes: "Do nấm Exserohilum turcicum gây ra, phát triển mạnh khi nóng ẩm.",
+        prevention: "Luân canh cây trồng, dọn tàn dư cây bệnh, bón phân cân đối.",
+        care: "Bón thêm kali, giảm đạm, sử dụng chế phẩm sinh học.",
+        treatment: "Phun Daconil, Score hoặc Tilt theo hướng dẫn."
       },
-      "khỏe mạnh": {
-        symptoms: "Lá xanh đều, không có vết bệnh.",
-        causes: "Điều kiện sinh trưởng tốt.",
-        prevention: "Tiếp tục chăm sóc bình thường.",
-        care: "Duy trì bón phân và tưới nước hợp lý.",
+      "Bệnh phấn đen": {
+        symptoms: "Xuất hiện các nốt u sưng trắng trên bẹ lá, thân, bắp. Sau phình to, bên trong có bột đen là bào tử nấm.",
+        causes: "Do nấm Ustilago maydis hoặc Ustilago zeae gây ra. Phát tán qua gió và nước.",
+        prevention: "Luân canh cây trồng, xử lý hạt giống, dọn sạch tàn dư cây bệnh.",
+        care: "Cắt bỏ phần bị bệnh, tăng bón kali và hữu cơ.",
+        treatment: "Phun Antafungal hoặc thuốc có tebuconazole, propiconazole, hexaconazole."
+      },
+      "Cây ngô khỏe": {
+        symptoms: "Lá xanh bóng, không có đốm bệnh hay phấn phủ.",
+        causes: "Cây phát triển trong điều kiện sinh trưởng tốt.",
+        prevention: "Duy trì tưới tiêu và bón phân hợp lý.",
+        care: "Giữ ruộng thông thoáng, phòng bệnh định kỳ.",
         treatment: "Không cần xử lý thêm."
       }
     };
 
-    function normalizeName(name) {
-      return name.toLowerCase()
-        .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
-        .trim();
+    // 🎤 Giọng đọc tiếng Việt
+    function speak(text) {
+      const utter = new SpeechSynthesisUtterance(text);
+      utter.lang = 'vi-VN';
+      utter.rate = 0.95;
+      utter.pitch = 1.0;
+      speechSynthesis.cancel();
+      speechSynthesis.speak(utter);
     }
 
+    // 🧠 Tải mô hình
     async function loadModel() {
-      resultDiv.textContent = "⏳ Đang tải mô hình...";
+      resultDiv.innerText = "⏳ Đang tải mô hình...";
+      await tf.ready();
       model = await tmImage.load(MODEL_URL + "model.json", MODEL_URL + "metadata.json");
-      resultDiv.textContent = "✅ Mô hình đã sẵn sàng. Nhấn bật camera.";
+      resultDiv.innerText = "✅ Mô hình sẵn sàng. Nhấn Bật camera.";
+      speak("Mô hình đã sẵn sàng, bạn có thể bật camera để bắt đầu.");
     }
 
-    loadModel();
-
+    // 🎥 Bật camera sau
     async function startCamera() {
       try {
-        stream = await navigator.mediaDevices.getUserMedia({ video: true });
-        video.srcObject = stream;
-        startBtn.disabled = true;
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        const videoDevices = devices.filter(d => d.kind === 'videoinput');
+        const backCam = videoDevices.find(d => /back|environment/i.test(d.label)) || videoDevices[0];
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: { deviceId: backCam ? { exact: backCam.deviceId } : undefined }
+        });
+        webcam.srcObject = stream;
         captureBtn.disabled = false;
-        resultDiv.textContent = "📸 Camera đã bật, chụp ảnh để phân tích.";
+        analyzeBtn.disabled = true;
+        resultDiv.innerText = "📸 Camera đã bật, hướng lá ngô vào khung hình.";
+        speak("Camera đã bật, hãy hướng lá ngô vào khung hình rồi chụp ảnh.");
       } catch (e) {
-        alert("Không thể bật camera. Hãy cấp quyền truy cập camera cho trình duyệt.");
+        alert("⚠️ Không thể bật camera. Hãy cho phép truy cập camera trên trình duyệt.");
       }
     }
 
+    function stopCamera() {
+      if (stream) stream.getTracks().forEach(t => t.stop());
+      webcam.srcObject = null;
+    }
+
+    // 📷 Chụp ảnh
     function captureImage() {
-      const c = document.createElement("canvas");
-      c.width = video.videoWidth;
-      c.height = video.videoHeight;
-      c.getContext("2d").drawImage(video, 0, 0);
-      preview.src = c.toDataURL("image/jpeg");
-      preview.style.display = "block";
+      const canvas = document.createElement('canvas');
+      canvas.width = webcam.videoWidth;
+      canvas.height = webcam.videoHeight;
+      canvas.getContext('2d').drawImage(webcam, 0, 0);
+      preview.src = canvas.toDataURL('image/jpeg');
+      preview.style.display = 'block';
       analyzeBtn.disabled = false;
-      resultDiv.textContent = "📷 Ảnh đã chụp, nhấn Phân tích.";
-      detailsDiv.style.display = "none";
-      detailsBtn.disabled = true;
+      resultDiv.innerText = "🖼️ Ảnh đã chụp, nhấn Phân tích để xem kết quả.";
+      speak("Ảnh đã được chụp, bấm phân tích để xem kết quả chẩn đoán.");
     }
 
+    // 🤖 Phân tích ảnh
     async function analyzeImage() {
-      if (!model || !preview.src) {
-        alert("Chưa có ảnh hoặc mô hình chưa sẵn sàng.");
-        return;
-      }
-      resultDiv.textContent = "🔍 Đang phân tích...";
-      await new Promise(r => preview.complete ? r() : preview.onload = r);
-
-      const pred = await model.predict(preview);
-      pred.sort((a, b) => b.probability - a.probability);
-      const top = pred[0];
-      const rawClass = top.className || "";
-      const clsNorm = normalizeName(rawClass);
+      resultDiv.innerText = "🔍 Đang phân tích...";
+      await tf.nextFrame();
+      const prediction = await model.predict(preview);
+      prediction.sort((a, b) => b.probability - a.probability);
+      const top = prediction[0];
+      const name = nameMap[top.className.toUpperCase()] || top.className;
       const conf = (top.probability * 100).toFixed(1);
 
-      resultDiv.textContent = `Kết luận: ${rawClass} (${conf}%)`;
-      lastClassName = clsNorm;
+      resultDiv.innerText = `Kết luận: ${name} (${conf}%)`;
+      speak(`Kết luận: ${name}. Độ tin cậy ${conf} phần trăm.`);
+      showDetails(name);
+    }
 
-      const data = diseaseDetails[clsNorm];
-      if (data) {
-        renderDetails(rawClass, data);
-        detailsBtn.disabled = false;
-        detailsDiv.style.display = "block";
-      } else {
-        detailsContainer.innerHTML = "<p>Không có thông tin chi tiết cho loại bệnh này.</p>";
-        detailsDiv.style.display = "block";
-        detailsBtn.disabled = true;
+    // 📖 Hiển thị chi tiết
+    function showDetails(name) {
+      const data = diseaseDetails[name];
+      if (!data) return;
+      symptoms.textContent = data.symptoms;
+      causes.textContent = data.causes;
+      prevention.textContent = data.prevention;
+      care.textContent = data.care;
+      treatment.textContent = data.treatment;
+      detailsBtn.disabled = false;
+      lastClassName = name;
+    }
+
+    detailsBtn.onclick = () => {
+      if (details.style.display === "block") {
+        details.style.display = "none";
+      } else if (lastClassName) {
+        details.style.display = "block";
+        const d = diseaseDetails[lastClassName];
+        speak(`Biểu hiện: ${d.symptoms}. Nguyên nhân: ${d.causes}. Phòng ngừa: ${d.prevention}. Chăm sóc: ${d.care}. Điều trị: ${d.treatment}.`);
       }
-    }
+    };
 
-    function renderDetails(name, data) {
-      let html = `<table>
-        <tr><th>Chuẩn đoán</th><td>${name}</td></tr>
-        <tr><th>Triệu chứng</th><td>${data.symptoms}</td></tr>
-        <tr><th>Nguyên nhân</th><td>${data.causes}</td></tr>
-        <tr><th>Phòng ngừa</th><td>${data.prevention}</td></tr>
-        <tr><th>Chăm sóc</th><td>${data.care}</td></tr>
-        <tr><th>Điều trị</th><td>${data.treatment}</td></tr>
-      </table>`;
-      detailsContainer.innerHTML = html;
-    }
+    // Gán sự kiện
+    const webcam = document.getElementById('webcam');
+    const preview = document.getElementById('preview');
+    const startBtn = document.getElementById('startBtn');
+    const captureBtn = document.getElementById('captureBtn');
+    const analyzeBtn = document.getElementById('analyzeBtn');
+    const detailsBtn = document.getElementById('detailsBtn');
+    const resultDiv = document.getElementById('result');
+    const details = document.getElementById('details');
+    const symptoms = document.getElementById('symptoms');
+    const causes = document.getElementById('causes');
+    const prevention = document.getElementById('prevention');
+    const care = document.getElementById('care');
+    const treatment = document.getElementById('treatment');
 
-    detailsBtn.addEventListener("click", () => {
-      detailsDiv.style.display =
-        detailsDiv.style.display === "block" ? "none" : "block";
-    });
+    startBtn.onclick = () => startCamera();
+    captureBtn.onclick = () => captureImage();
+    analyzeBtn.onclick = () => analyzeImage();
 
-    startBtn.onclick = startCamera;
-    captureBtn.onclick = captureImage;
-    analyzeBtn.onclick = analyzeImage;
+    loadModel();
   </script>
 </body>
 </html>
