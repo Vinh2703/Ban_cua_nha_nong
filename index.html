@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>AI Nhận diện bệnh trên lá ngô</title>
+  <title>Ứng dụng AI Bạn của nhà nông</title>
 
   <!-- TensorFlow & Teachable Machine -->
   <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@3.9.0"></script>
@@ -12,13 +12,14 @@
   <style>
     body {
       font-family: Arial, sans-serif;
-      background: linear-gradient(135deg, #e8f5e9, #c8e6c9);
+      background: linear-gradient(135deg, #f1f8e9, #c8e6c9);
       text-align: center;
-      padding: 10px;
+      padding: 15px;
     }
 
     h1 {
-      color: #2e7d32;
+      color: #1b5e20;
+      font-size: 24px;
       margin-bottom: 10px;
     }
 
@@ -31,7 +32,8 @@
     }
 
     button {
-      margin: 8px;
+      display: block;
+      margin: 8px auto;
       padding: 14px 20px;
       font-size: 18px;
       border-radius: 10px;
@@ -41,6 +43,11 @@
       cursor: pointer;
       width: 90%;
       max-width: 400px;
+      transition: 0.2s;
+    }
+
+    button:hover {
+      background: #2e7d32;
     }
 
     button:disabled {
@@ -56,7 +63,7 @@
     }
 
     #details {
-      background: #f1f8e9;
+      background: #ffffff;
       margin-top: 15px;
       padding: 12px;
       border-radius: 10px;
@@ -71,6 +78,7 @@
     #details h3 {
       color: #2e7d32;
       margin-bottom: 8px;
+      text-align: center;
     }
 
     #details p {
@@ -82,7 +90,7 @@
 </head>
 
 <body>
-  <h1>🌽 AI Nhận diện bệnh trên lá ngô</h1>
+  <h1>🌾 Ứng dụng AI Bạn của nhà nông</h1>
 
   <video id="webcam" autoplay playsinline></video>
   <img id="preview" style="display:none;">
@@ -107,10 +115,10 @@
 
   <script>
     const MODEL_URL = "https://teachablemachine.withgoogle.com/models/YEWRSh9R8/";
-    let model = null, stream = null, currentDeviceId = null;
+    let model = null, stream = null;
     let lastClassName = null;
 
-    // 🌾 Bảng tên lớp bệnh
+    // 🟢 Bảng tên lớp bệnh (trùng với mô hình)
     const nameMap = {
       "BENH_KHO_VAN": "Bệnh khô vằn",
       "BENH_DOM_LA_LON": "Bệnh đốm lá lớn",
@@ -118,39 +126,39 @@
       "CAY_NGO_KHOE": "Cây ngô khỏe"
     };
 
-    // 🌿 Thông tin chi tiết từng bệnh
+    // 🟢 Thông tin chi tiết bệnh
     const diseaseDetails = {
       "Bệnh khô vằn": {
-        symptoms: "Vết loang xám tro trên bẹ lá và thân, hình dạng bất định như đám mây. Vết bệnh lan dần từ gốc lên bắp, làm lá vàng khô và cây chết dần.",
-        causes: "Do nấm Rhizoctonia solani Kuhn gây ra. Phát triển mạnh khi ẩm độ cao, nhiệt độ 25–30°C.",
-        prevention: "Chọn giống ít nhiễm, gieo đúng thời vụ, trồng thưa, vệ sinh đồng ruộng.",
+        symptoms: "Vết loang xám tro trên bẹ lá và thân, hình dạng bất định. Bệnh lan từ gốc lên bắp làm lá vàng khô và cây chết dần.",
+        causes: "Do nấm Rhizoctonia solani Kuhn, phát triển mạnh trong điều kiện ẩm cao, nhiệt độ 25–30°C.",
+        prevention: "Chọn giống ít nhiễm, gieo đúng thời vụ, vệ sinh đồng ruộng, tiêu hủy tàn dư cây bệnh.",
         care: "Giữ ruộng thông thoáng, không bón thừa đạm, dùng chế phẩm Trichoderma.",
-        treatment: "Phun thuốc Anvil 5SC, Azotide 30SC, Tilt Super 300EC, hoặc Evitin 50SC."
+        treatment: "Phun thuốc Anvil, Azotide, Tilt Super hoặc Evitin theo hướng dẫn."
       },
       "Bệnh đốm lá lớn": {
-        symptoms: "Xuất hiện đốm bầu dục nâu nhạt, dài 10–15cm, giữa đốm xám tro. Bệnh nặng làm lá khô cháy.",
-        causes: "Do nấm Exserohilum turcicum gây ra, phát triển mạnh khi nóng ẩm.",
-        prevention: "Luân canh cây trồng, dọn tàn dư cây bệnh, bón phân cân đối.",
-        care: "Bón thêm kali, giảm đạm, sử dụng chế phẩm sinh học.",
-        treatment: "Phun Daconil, Score hoặc Tilt theo hướng dẫn."
+        symptoms: "Trên lá xuất hiện đốm bầu dục hoặc thoi, nâu nhạt đến nâu đậm, giữa đốm xám tro. Khi ẩm ướt, bệnh lan nhanh làm lá khô cháy.",
+        causes: "Do nấm Exserohilum turcicum, phát triển mạnh khi thời tiết nóng ẩm.",
+        prevention: "Luân canh cây trồng, dọn sạch tàn dư, bón phân cân đối.",
+        care: "Giảm đạm, tăng kali, phun chế phẩm sinh học phòng bệnh.",
+        treatment: "Phun Daconil, Score hoặc Tilt khi bệnh lan rộng."
       },
       "Bệnh phấn đen": {
-        symptoms: "Xuất hiện các nốt u sưng trắng trên bẹ lá, thân, bắp. Sau phình to, bên trong có bột đen là bào tử nấm.",
-        causes: "Do nấm Ustilago maydis hoặc Ustilago zeae gây ra. Phát tán qua gió và nước.",
+        symptoms: "Xuất hiện u sưng trắng trên bẹ lá, thân, bắp. Bên trong chứa bột đen là bào tử nấm.",
+        causes: "Do nấm Ustilago maydis hoặc Ustilago zeae gây ra, phát tán qua gió, nước, vết thương.",
         prevention: "Luân canh cây trồng, xử lý hạt giống, dọn sạch tàn dư cây bệnh.",
-        care: "Cắt bỏ phần bị bệnh, tăng bón kali và hữu cơ.",
-        treatment: "Phun Antafungal hoặc thuốc có tebuconazole, propiconazole, hexaconazole."
+        care: "Cắt bỏ phần bị bệnh, tăng cường bón kali và hữu cơ.",
+        treatment: "Phun Antafungal hoặc thuốc chứa tebuconazole, propiconazole, hexaconazole."
       },
       "Cây ngô khỏe": {
         symptoms: "Lá xanh bóng, không có đốm bệnh hay phấn phủ.",
         causes: "Cây phát triển trong điều kiện sinh trưởng tốt.",
-        prevention: "Duy trì tưới tiêu và bón phân hợp lý.",
-        care: "Giữ ruộng thông thoáng, phòng bệnh định kỳ.",
+        prevention: "Duy trì tưới tiêu hợp lý, bón phân cân đối.",
+        care: "Giữ ruộng thông thoáng, tránh ngập úng.",
         treatment: "Không cần xử lý thêm."
       }
     };
 
-    // 🎤 Giọng đọc tiếng Việt
+    // 🔊 Giọng đọc tiếng Việt tự nhiên
     function speak(text) {
       const utter = new SpeechSynthesisUtterance(text);
       utter.lang = 'vi-VN';
@@ -165,11 +173,11 @@
       resultDiv.innerText = "⏳ Đang tải mô hình...";
       await tf.ready();
       model = await tmImage.load(MODEL_URL + "model.json", MODEL_URL + "metadata.json");
-      resultDiv.innerText = "✅ Mô hình sẵn sàng. Nhấn Bật camera.";
-      speak("Mô hình đã sẵn sàng, bạn có thể bật camera để bắt đầu.");
+      resultDiv.innerText = "✅ Mô hình đã sẵn sàng. Nhấn Bật camera để bắt đầu.";
+      speak("Mô hình đã sẵn sàng, hãy bật camera để bắt đầu.");
     }
 
-    // 🎥 Bật camera sau
+    // 🎥 Mở camera sau
     async function startCamera() {
       try {
         const devices = await navigator.mediaDevices.enumerateDevices();
@@ -180,21 +188,16 @@
         });
         webcam.srcObject = stream;
         captureBtn.disabled = false;
-        analyzeBtn.disabled = true;
-        resultDiv.innerText = "📸 Camera đã bật, hướng lá ngô vào khung hình.";
-        speak("Camera đã bật, hãy hướng lá ngô vào khung hình rồi chụp ảnh.");
+        resultDiv.innerText = "📸 Camera đã bật. Hãy chụp ảnh lá ngô.";
+        speak("Camera đã bật, hãy chụp ảnh lá ngô.");
       } catch (e) {
-        alert("⚠️ Không thể bật camera. Hãy cho phép truy cập camera trên trình duyệt.");
+        alert("⚠️ Không thể bật camera. Hãy mở bằng Chrome và cấp quyền truy cập camera.");
       }
-    }
-
-    function stopCamera() {
-      if (stream) stream.getTracks().forEach(t => t.stop());
-      webcam.srcObject = null;
     }
 
     // 📷 Chụp ảnh
     function captureImage() {
+      if (!stream) return;
       const canvas = document.createElement('canvas');
       canvas.width = webcam.videoWidth;
       canvas.height = webcam.videoHeight;
@@ -202,20 +205,22 @@
       preview.src = canvas.toDataURL('image/jpeg');
       preview.style.display = 'block';
       analyzeBtn.disabled = false;
-      resultDiv.innerText = "🖼️ Ảnh đã chụp, nhấn Phân tích để xem kết quả.";
-      speak("Ảnh đã được chụp, bấm phân tích để xem kết quả chẩn đoán.");
+      resultDiv.innerText = "🖼️ Ảnh đã chụp. Nhấn Phân tích bệnh.";
+      speak("Ảnh đã được chụp. Hãy nhấn Phân tích bệnh để xem kết quả.");
     }
 
     // 🤖 Phân tích ảnh
     async function analyzeImage() {
+      if (!model || !preview.src) {
+        speak("Vui lòng chụp ảnh trước khi phân tích.");
+        return;
+      }
       resultDiv.innerText = "🔍 Đang phân tích...";
-      await tf.nextFrame();
       const prediction = await model.predict(preview);
       prediction.sort((a, b) => b.probability - a.probability);
       const top = prediction[0];
       const name = nameMap[top.className.toUpperCase()] || top.className;
       const conf = (top.probability * 100).toFixed(1);
-
       resultDiv.innerText = `Kết luận: ${name} (${conf}%)`;
       speak(`Kết luận: ${name}. Độ tin cậy ${conf} phần trăm.`);
       showDetails(name);
@@ -223,13 +228,13 @@
 
     // 📖 Hiển thị chi tiết
     function showDetails(name) {
-      const data = diseaseDetails[name];
-      if (!data) return;
-      symptoms.textContent = data.symptoms;
-      causes.textContent = data.causes;
-      prevention.textContent = data.prevention;
-      care.textContent = data.care;
-      treatment.textContent = data.treatment;
+      const d = diseaseDetails[name];
+      if (!d) return;
+      symptoms.textContent = d.symptoms;
+      causes.textContent = d.causes;
+      prevention.textContent = d.prevention;
+      care.textContent = d.care;
+      treatment.textContent = d.treatment;
       detailsBtn.disabled = false;
       lastClassName = name;
     }
@@ -244,7 +249,7 @@
       }
     };
 
-    // Gán sự kiện
+    // Gắn sự kiện
     const webcam = document.getElementById('webcam');
     const preview = document.getElementById('preview');
     const startBtn = document.getElementById('startBtn');
