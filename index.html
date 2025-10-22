@@ -1,67 +1,35 @@
 <!DOCTYPE html>
 <html lang="vi">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>AI Nhận diện bệnh trên lá</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>AI Nhận diện bệnh trên lá — Phiên bản sửa lỗi</title>
+
   <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@3.9.0"></script>
   <script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@0.8/dist/teachablemachine-image.min.js"></script>
+
   <style>
-    body {
-      font-family: Arial, sans-serif;
-      background: linear-gradient(135deg, #e8f5e9, #c8e6c9);
-      text-align: center;
-      padding: 10px;
-    }
-    h1 {
-      color: #2e7d32;
-      margin-bottom: 10px;
-    }
-    video, img {
-      width: 90%;
-      max-width: 360px;
-      border-radius: 10px;
-      border: 2px solid #81c784;
-      margin-top: 10px;
-    }
-    button {
-      margin: 5px;
-      padding: 10px 15px;
-      font-size: 16px;
-      border-radius: 8px;
-      border: none;
-      background: #66bb6a;
-      color: white;
-      cursor: pointer;
-    }
-    button:disabled {
-      background: #ccc;
-      cursor: not-allowed;
-    }
-    #result {
-      margin-top: 15px;
-      font-size: 18px;
-      font-weight: bold;
-      color: #1b5e20;
-    }
-    #details {
-      background: #f1f8e9;
-      margin-top: 10px;
-      padding: 10px;
-      border-radius: 8px;
-      display: none;
-      text-align: left;
-    }
-    #details p {
-      margin: 5px 0;
-    }
+    body { font-family: Arial, sans-serif; background: linear-gradient(135deg,#e8f5e9,#c8e6c9); text-align:center; padding:12px;}
+    h1 { color:#2e7d32; margin-bottom:6px;}
+    video, img { width:90%; max-width:360px; border-radius:10px; border:2px solid #81c784; margin-top:10px; }
+    button { margin:5px; padding:10px 14px; font-size:15px; border-radius:8px; border:none; background:#66bb6a; color:#fff; cursor:pointer; }
+    button:disabled { background:#ccc; cursor:not-allowed; color:#666;}
+    #result { margin-top:12px; font-size:18px; font-weight:700; color:#1b5e20; }
+    #details { background:#f1f8e9; margin-top:10px; padding:10px; border-radius:8px; display:none; text-align:left; max-width:720px; margin-left:auto; margin-right:auto; box-shadow: 0 2px 6px rgba(0,0,0,0.08); }
+    #details table { width:100%; border-collapse:collapse; }
+    #details th { text-align:left; vertical-align:top; padding:6px 8px; color:#2e7d32; width:30%; }
+    #details td { padding:6px 8px; border-bottom:1px solid #dcedc8; }
+    .muted { color:#666; font-size:14px; }
+    .small { font-size:13px; color:#444; }
   </style>
 </head>
 <body>
-  <h1>🌿 AI Nhận diện bệnh trên lá</h1>
+  <h1>🌿 AI Nhận diện bệnh trên lá — Bản vá</h1>
+
   <video id="webcam" autoplay playsinline></video>
-  <img id="preview" style="display:none;">
-  <div>
+  <img id="preview" style="display:none;" alt="Ảnh chụp">
+
+  <div style="margin-top:8px">
     <button id="startBtn">📷 Bật camera</button>
     <button id="switchBtn" disabled>🔄 Đổi camera</button>
     <button id="stopBtn" disabled>🛑 Tắt camera</button>
@@ -69,20 +37,29 @@
     <button id="analyzeBtn" disabled>🤖 Phân tích</button>
     <button id="detailsBtn" disabled>📖 Xem chi tiết</button>
   </div>
-  <div id="result">Chưa có dữ liệu.</div>
-  <div id="details">
-    <h3>Chi tiết bệnh:</h3>
-    <p><b>Triệu chứng:</b> <span id="symptoms"></span></p>
-    <p><b>Nguyên nhân:</b> <span id="causes"></span></p>
-    <p><b>Phòng ngừa:</b> <span id="prevention"></span></p>
-    <p><b>Chăm sóc:</b> <span id="care"></span></p>
-    <p><b>Điều trị:</b> <span id="treatment"></span></p>
-  </div>
-<script>
-const MODEL_URL = "https://teachablemachine.withgoogle.com/models/YEWRSh9R8/";
-let model = null, stream = null, currentDeviceId = null, videoDevices = [];
-let lastClassName = null;
 
+  <div id="result">Chưa có dữ liệu.</div>
+
+  <div id="details" aria-live="polite">
+    <h3 style="margin-top:0">Chi tiết bệnh:</h3>
+    <div id="detailsTableContainer" class="small"></div>
+  </div>
+
+<script>
+/* -------------------------
+   Cấu hình mô hình
+   ------------------------- */
+const MODEL_URL = "https://teachablemachine.withgoogle.com/models/YEWRSh9R8/";
+let model = null;
+let stream = null;
+let videoDevices = [];
+let currentDeviceId = null;
+let lastClassName = null; // lưu nhãn cuối cùng (chuẩn hóa UPPERCASE)
+
+/* -------------------------
+   Dữ liệu bệnh
+   Lưu ý: key là UPPERCASE
+   ------------------------- */
 const diseaseDetails = {
   "BỆNH ĐỐM NÂU": {
     symptoms: "Xuất hiện các đốm nâu tròn, sau lan rộng làm khô lá.",
@@ -107,6 +84,9 @@ const diseaseDetails = {
   }
 };
 
+/* -------------------------
+   Element refs
+   ------------------------- */
 const video = document.getElementById('webcam');
 const preview = document.getElementById('preview');
 const startBtn = document.getElementById('startBtn');
@@ -117,19 +97,26 @@ const analyzeBtn = document.getElementById('analyzeBtn');
 const detailsBtn = document.getElementById('detailsBtn');
 const resultDiv = document.getElementById('result');
 const detailsDiv = document.getElementById('details');
-const symptomsEl = document.getElementById('symptoms');
-const causesEl = document.getElementById('causes');
-const preventionEl = document.getElementById('prevention');
-const careEl = document.getElementById('care');
-const treatmentEl = document.getElementById('treatment');
+const detailsTableContainer = document.getElementById('detailsTableContainer');
 
+/* -------------------------
+   Text-to-speech helper
+   ------------------------- */
 function speak(text){
-  const utter = new SpeechSynthesisUtterance(text);
-  utter.lang = 'vi-VN';
-  speechSynthesis.cancel();
-  speechSynthesis.speak(utter);
+  try {
+    if(!("speechSynthesis" in window)) return;
+    speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(String(text));
+    u.lang = 'vi-VN';
+    speechSynthesis.speak(u);
+  } catch (e) {
+    console.warn("Speech error:", e);
+  }
 }
 
+/* -------------------------
+   Load model
+   ------------------------- */
 async function loadModel(){
   try {
     resultDiv.innerText = "⏳ Đang tải mô hình...";
@@ -137,47 +124,63 @@ async function loadModel(){
     model = await tmImage.load(MODEL_URL + "model.json", MODEL_URL + "metadata.json");
     resultDiv.innerText = "✅ Mô hình sẵn sàng. Nhấn Bật camera.";
     speak("Mô hình đã sẵn sàng, nhấn bật camera để bắt đầu.");
+    console.log("Model loaded.");
   } catch (e) {
     resultDiv.innerText = "❌ Lỗi khi tải mô hình.";
-    console.error(e);
+    console.error("Error loading model:", e);
+    alert("Lỗi khi tải mô hình. Kiểm tra đường dẫn hoặc kết nối mạng.");
   }
 }
 loadModel();
 
+/* -------------------------
+   Camera helpers
+   ------------------------- */
 async function listVideoDevices(){
-  videoDevices = (await navigator.mediaDevices.enumerateDevices()).filter(d => d.kind === 'videoinput');
+  try {
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    videoDevices = devices.filter(d => d.kind === 'videoinput');
+    console.log("videoDevices:", videoDevices);
+  } catch (e) {
+    console.warn("enumerateDevices failed:", e);
+    videoDevices = [];
+  }
 }
 
 async function startCamera(preferBack = true){
   try {
     await listVideoDevices();
     let constraints;
-    if(videoDevices.length > 0){
-      let back = videoDevices.find(d => /back|environment/i.test(d.label));
-      if(preferBack && back){
+    if (videoDevices.length > 0){
+      const back = videoDevices.find(d => /back|environment/i.test(d.label));
+      if (preferBack && back){
         currentDeviceId = back.deviceId;
         constraints = { video: { deviceId: { exact: currentDeviceId } } };
-      } else constraints = { video: { facingMode: "environment" } };
-    } else constraints = { video: true };
+      } else {
+        constraints = { video: { facingMode: "environment" } };
+      }
+    } else {
+      constraints = { video: true };
+    }
 
-    if(stream){ stopCamera(); }
+    if (stream) stopCamera();
     stream = await navigator.mediaDevices.getUserMedia(constraints);
     video.srcObject = stream;
-    captureBtn.disabled = false;
-    stopBtn.disabled = false;
-    switchBtn.disabled = videoDevices.length < 2;
     startBtn.disabled = true;
+    stopBtn.disabled = false;
+    captureBtn.disabled = false;
+    switchBtn.disabled = (videoDevices.length < 2);
     resultDiv.innerText = "📸 Camera đã bật, bạn có thể chụp ảnh.";
     speak("Camera đã bật, bạn có thể chụp ảnh.");
-  } catch (err) {
-    console.error(err);
-    alert("⚠️ Không thể bật camera. Hãy mở file này bằng Chrome và cho phép truy cập camera.");
-    speak("Không thể bật camera. Hãy mở bằng trình duyệt Chrome và cấp quyền camera.");
+  } catch (err){
+    console.error("startCamera error:", err);
+    alert("⚠️ Không thể bật camera. Mở bằng Chrome/Edge và cấp quyền camera.");
+    speak("Không thể bật camera. Hãy mở bằng Chrome hoặc Edge và cấp quyền camera.");
   }
 }
 
 function stopCamera(){
-  if(stream){
+  if (stream){
     stream.getTracks().forEach(t => t.stop());
     stream = null;
   }
@@ -186,76 +189,173 @@ function stopCamera(){
   stopBtn.disabled = true;
   captureBtn.disabled = true;
   analyzeBtn.disabled = true;
+  detailsBtn.disabled = true;
+  preview.style.display = 'none';
+  preview.src = '';
   resultDiv.innerText = "🛑 Camera đã tắt.";
+  detailsDiv.style.display = 'none';
+  lastClassName = null;
+  console.log("Camera stopped.");
 }
 
 async function switchCamera(){
-  if(videoDevices.length < 2) return;
-  let idx = videoDevices.findIndex(d => d.deviceId === currentDeviceId);
-  currentDeviceId = videoDevices[(idx + 1) % videoDevices.length].deviceId;
+  if (videoDevices.length < 2) return;
+  const idx = videoDevices.findIndex(d => d.deviceId === currentDeviceId);
+  const next = videoDevices[(idx + 1) % videoDevices.length];
+  currentDeviceId = next.deviceId;
   await startCamera(false);
 }
 
+/* -------------------------
+   Capture & Analyze
+   ------------------------- */
 function captureImage(){
+  if (!video.videoWidth || !video.videoHeight){
+    alert("Ảnh chưa sẵn sàng — thử lại.");
+    return;
+  }
   const canvas = document.createElement('canvas');
   canvas.width = video.videoWidth;
   canvas.height = video.videoHeight;
-  canvas.getContext('2d').drawImage(video, 0, 0);
+  const ctx = canvas.getContext('2d');
+  ctx.drawImage(video, 0, 0);
   preview.src = canvas.toDataURL('image/jpeg');
   preview.style.display = 'block';
   analyzeBtn.disabled = false;
   resultDiv.innerText = "📷 Ảnh đã chụp, nhấn Phân tích.";
   speak("Ảnh đã chụp, nhấn phân tích để xem kết quả.");
+  // reset details area
+  detailsDiv.style.display = 'none';
+  detailsTableContainer.innerHTML = '';
+  lastClassName = null;
+  detailsBtn.disabled = true;
+  console.log("Image captured.");
 }
 
 async function analyzeImage(){
-  if(!model){
+  if (!model){
     resultDiv.innerText = "⚠️ Mô hình chưa sẵn sàng.";
     speak("Mô hình chưa sẵn sàng, vui lòng đợi.");
     return;
   }
-  if(!preview.src){
+  if (!preview.src){
     resultDiv.innerText = "⚠️ Bạn cần chụp ảnh trước khi phân tích.";
     speak("Bạn cần chụp ảnh trước khi phân tích.");
     return;
   }
   resultDiv.innerText = "🔍 Đang phân tích...";
   speak("Đang phân tích ảnh, vui lòng đợi.");
-  await new Promise(r => preview.complete ? r() : preview.onload = r);
-  const prediction = await model.predict(preview);
-  prediction.sort((a,b) => b.probability - a.probability);
-  const top = prediction[0];
-  const className = top.className.toUpperCase();
-  const confidence = (top.probability * 100).toFixed(1);
-  resultDiv.innerText = `Kết luận: ${className} (${confidence}%)`;
-  speak(`Kết luận ${className}, độ tin cậy ${confidence} phần trăm.`);
-  lastClassName = className;
-  detailsBtn.disabled = false;
-  detailsDiv.style.display = 'none';
+  // đảm bảo ảnh đã load
+  await new Promise(res => preview.complete ? res() : preview.onload = res);
+
+  try {
+    const predictions = await model.predict(preview);
+    if (!Array.isArray(predictions) || predictions.length === 0){
+      throw new Error("Model returned no predictions.");
+    }
+    predictions.sort((a,b) => b.probability - a.probability);
+    const top = predictions[0];
+    const raw = String(top.className || "").trim();
+    const className = raw.toUpperCase();
+    const confidence = (top.probability * 100).toFixed(1);
+
+    console.log("Predictions:", predictions);
+    resultDiv.innerText = `Kết luận: ${className} (${confidence}%)`;
+    speak(`Kết luận ${className}, độ tin cậy ${confidence} phần trăm.`);
+    lastClassName = className;
+
+    // Nếu có dữ liệu chi tiết => render và bật nút
+    if (className in diseaseDetails){
+      renderDetails(className);           // tạo nội dung sẵn sàng
+      detailsBtn.disabled = false;        // bật nút để người dùng xem
+      // Optionally tự mở chi tiết ngay:
+      // detailsDiv.style.display = 'block';
+      // speakDetails(className);
+    } else {
+      // không có thông tin chi tiết
+      detailsTableContainer.innerHTML = `<p class="muted">Không có thông tin chi tiết cho kết luận "<b>${escapeHtml(className)}</b>".</p>`;
+      detailsBtn.disabled = true;
+      console.warn("No detail for:", className);
+    }
+  } catch (err){
+    console.error("analyzeImage error:", err);
+    resultDiv.innerText = "❌ Lỗi khi phân tích ảnh.";
+    speak("Lỗi khi phân tích ảnh, vui lòng thử lại.");
+  }
 }
 
-detailsBtn.onclick = () => {
-  if (!lastClassName) return;
-  const data = diseaseDetails[lastClassName];
+/* -------------------------
+   Render chi tiết & đọc
+   ------------------------- */
+function renderDetails(className){
+  const data = diseaseDetails[className];
+  if (!data){
+    detailsTableContainer.innerHTML = `<p class="muted">Không có thông tin chi tiết.</p>`;
+    return;
+  }
+  const html = `
+    <table>
+      <tr><th>Chuẩn đoán</th><td>${escapeHtml(className)}</td></tr>
+      <tr><th>Triệu chứng</th><td>${escapeHtml(data.symptoms)}</td></tr>
+      <tr><th>Nguyên nhân</th><td>${escapeHtml(data.causes)}</td></tr>
+      <tr><th>Phòng ngừa</th><td>${escapeHtml(data.prevention)}</td></tr>
+      <tr><th>Chăm sóc</th><td>${escapeHtml(data.care)}</td></tr>
+      <tr><th>Điều trị</th><td>${escapeHtml(data.treatment)}</td></tr>
+    </table>
+  `;
+  detailsTableContainer.innerHTML = html;
+}
+
+/* Đọc chi tiết: đọc cả đoạn dài (một lần) để tránh overlap */
+function speakDetails(className){
+  const data = diseaseDetails[className];
   if (!data) return;
+  const text = `Chuẩn đoán: ${className}. Triệu chứng: ${data.symptoms}. Nguyên nhân: ${data.causes}. Cách phòng ngừa: ${data.prevention}. Chăm sóc: ${data.care}. Điều trị: ${data.treatment}.`;
+  speak(text);
+}
 
-  symptomsEl.innerText = data.symptoms;
-  causesEl.innerText = data.causes;
-  preventionEl.innerText = data.prevention;
-  careEl.innerText = data.care;
-  treatmentEl.innerText = data.treatment;
+/* Toggle tạo hành động cho nút details (đảm bảo binding mạnh mẽ) */
+detailsBtn.addEventListener('click', () => {
+  try {
+    if (!lastClassName) return;
+    if (detailsDiv.style.display === 'block'){
+      detailsDiv.style.display = 'none';
+    } else {
+      // nếu có data, đảm bảo đã render
+      if (lastClassName in diseaseDetails && detailsTableContainer.innerHTML.trim() === ''){
+        renderDetails(lastClassName);
+      }
+      detailsDiv.style.display = 'block';
+      speakDetails(lastClassName);
+      // cuộn xuống phần details để người dùng thấy
+      setTimeout(() => detailsDiv.scrollIntoView({ behavior: 'smooth', block: 'center' }), 120);
+    }
+  } catch (e) {
+    console.error("detailsBtn click error:", e);
+  }
+});
 
-  detailsDiv.style.display = 'block';
+/* -------------------------
+   Util helpers
+   ------------------------- */
+function escapeHtml(s){
+  if (!s) return '';
+  return String(s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+}
 
-  const narration = `Triệu chứng: ${data.symptoms}. Nguyên nhân: ${data.causes}. Phòng ngừa: ${data.prevention}. Chăm sóc: ${data.care}. Điều trị: ${data.treatment}.`;
-  speak(narration);
-};
+/* -------------------------
+   Nút bindings
+   ------------------------- */
+startBtn.addEventListener('click', () => startCamera());
+switchBtn.addEventListener('click', () => switchCamera());
+stopBtn.addEventListener('click', () => stopCamera());
+captureBtn.addEventListener('click', () => captureImage());
+analyzeBtn.addEventListener('click', () => analyzeImage());
 
-startBtn.onclick = () => startCamera();
-switchBtn.onclick = () => switchCamera();
-stopBtn.onclick = () => stopCamera();
-captureBtn.onclick = () => captureImage();
-analyzeBtn.onclick = () => analyzeImage();
+/* -------------------------
+   Debug: ghi hướng dẫn console
+   ------------------------- */
+console.log("%cDebug: nếu nút Xem chi tiết không hoạt động, mở DevTools -> Console và gửi log cho mình.", "color: #2e7d32; font-weight: bold;");
 </script>
 </body>
 </html>
